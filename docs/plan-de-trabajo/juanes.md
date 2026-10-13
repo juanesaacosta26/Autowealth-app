@@ -11,11 +11,16 @@
 ## Semana 1 · Entender y definir el contrato (13–16 oct)
 
 ### Sesión 1 · Accesos del equipo, entorno y lectura de la API
-Render y Neon ya existen y están en tu cuenta, así que tú das los accesos:
-- [ ] **GitHub:** publica el repositorio e invita a los 4 como colaboradores (**Settings → Collaborators**). A Samu dale rol **Admin**.
+Neon queda en tu cuenta; **Render pasa a ser de Samu** (él crea un servicio nuevo en su cuenta). Tú das los accesos:
+- [ ] **GitHub:** publica el repositorio `autowealth` e invita a los 4 como colaboradores (**Settings → Collaborators**). A Samu dale rol **Admin** (lo necesita para conectar Render).
 - [ ] **Neon:** invita **solo a Garavito** al proyecto (ver [instalacion-y-despliegue.md §2](../instalacion-y-despliegue.md#2-base-de-datos-en-neon)). Él crea las ramas de cada uno.
-- [ ] **Render:** el plan gratuito admite una sola persona, así que **no se invita a nadie**. Agenda con Samu la llamada de su Semana 1 · Sesión 2 para conectar Render al repositorio nuevo.
-- [ ] Guarda las claves de producción (Render → Environment) en el gestor de contraseñas que cree Samu. **Nunca** por WhatsApp.
+- [ ] **Render (traspaso a Samu):**
+  1. Acepta la invitación de Samu al gestor de contraseñas (Bitwarden).
+  2. En tu Render → servicio viejo → **Environment**, copia **todas** las variables al gestor, una por una. **Nunca** por WhatsApp ni por el grupo. La más importante es `DATA_ENCRYPTION_KEY`: si cambia, los datos cifrados no se pueden leer.
+  3. Pásale a Samu el correo y la contraseña de un usuario de prueba que ya exista, para que compruebe que su servicio lee los datos.
+  4. Cuando Samu confirme que su servicio funciona: **Settings → Suspend Web Service** en el tuyo. Bórralo una semana después si nada falló.
+  5. Archiva el repositorio viejo `autowealth-app` (**Settings → Archive this repository**).
+- [ ] Sigue la Parte 1 de [instalacion-y-despliegue.md](../instalacion-y-despliegue.md) hasta ver la app corriendo con tu rama de Neon.
 - [ ] Sigue la Parte 1 de [instalacion-y-despliegue.md](../instalacion-y-despliegue.md) hasta ver la app corriendo con tu rama de Neon.
 - [ ] Lee [arquitectura.md](../arquitectura.md) y [api.md](../api.md).
 - [ ] Recorre el código en este orden: `server.js` (tabla `API` y función `atender`) → `src/rutas.js` → `src/finanzas/rutas.js` → `src/openfinance/index.js`.

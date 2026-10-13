@@ -3,7 +3,7 @@
 **Tu área:** que el proyecto funcione y sea seguro: GitHub, Render, revisión automática, pruebas, correos, seguridad y la versión final.
 **Tus archivos:** `.github/`, `tests/`, `src/seguridad.js`, `src/sesion.js`, `src/http.js`, `src/cifrado.js`, `src/config.js`, `src/correo.js`, `apps-script/` y `docs/instalacion-y-despliegue.md`, `docs/seguridad-y-cumplimiento.md`.
 **Trabajas con todos:** eres quien desbloquea a los demás cuando algo de entorno falla.
-**Accesos:** eres administrador del repositorio en GitHub. Render y Neon producción están en la cuenta de Juanes (Render gratis admite una sola persona); Garavito administra Neon. Para lo que se haga en Render, trabaja en llamada con Juanes.
+**Accesos:** eres administrador del repositorio en GitHub y **dueño del servicio de Render** (en tu propia cuenta). Neon sigue en la cuenta de Juanes y lo administra Garavito.
 
 > Regla de tu área: **`main` siempre funciona.** Lo que llega a `main` se publica solo en Render, así que nada entra sin revisión de otra persona ni con la revisión automática en rojo.
 
@@ -28,13 +28,32 @@ Juanes crea el repositorio y sube el código; tú quedas como **administrador**.
 
 **Listo cuando:** la regla de `main` está activa y el primer PR de prueba muestra la revisión automática.
 
-### Sesión 2 · Render y secretos (con Juanes)
-> El servicio de Render **ya existe** y está en la cuenta de Juanes. El plan gratuito de Render admite **una sola persona** por espacio de trabajo, así que tú no puedes entrar. No hace falta: Render publica solo cada vez que algo llega a `main` en GitHub. Esta sesión la haces **en llamada con Juanes**, que comparte pantalla.
-- [ ] Con Juanes: en Render → **Settings → Build & Deploy → Repository**, cambien al repositorio nuevo `autowealth` (si Render pide permiso para ver el repositorio, autorícenlo en GitHub).
-- [ ] Revisen juntos las variables de entorno contra la tabla de la [§5](../instalacion-y-despliegue.md#5-variables-de-configuración) y configuren **Health Check Path** en `/api/salud`.
-- [ ] Acuerden cómo te pasa Juanes los **logs** cuando algo falle (captura o copia del texto de Render → Logs).
-- [ ] Crea un gestor de contraseñas compartido (Bitwarden gratuito: *Organizations*). Guarda allí las claves de producción, **en especial `DATA_ENCRYPTION_KEY`**.
-- [ ] Verifica que la app publicada funciona: registro, panel y Banco Ceiba.
+### Sesión 2 · Crear el servicio de Render en tu cuenta
+> Desde ahora **tú eres el dueño de Render**. Creas un servicio nuevo en tu cuenta, conectado al repositorio nuevo, usando **la misma base de datos y las mismas claves** que el servicio viejo de Juanes. Así los usuarios ya registrados siguen funcionando. Pasos completos en [instalacion-y-despliegue.md §4](../instalacion-y-despliegue.md#4-publicar-en-render).
+
+**Antes de empezar**
+- [ ] Crea el gestor de contraseñas del equipo (Bitwarden gratuito → *Organizations*) e invita a Juanes.
+- [ ] Juanes copia allí **todas** las variables de su servicio viejo (Render → Environment). **Nunca** por WhatsApp ni por el grupo.
+
+**Crear el servicio**
+- [ ] En [render.com](https://render.com) entra **con tu cuenta de GitHub** (debes ser Admin del repositorio `autowealth`).
+- [ ] **New → Web Service** → elige `autowealth`. Si no aparece, **Configure GitHub** y dale acceso a Render a ese repositorio.
+- [ ] Configura: nombre `autowealth`, Branch `main`, Region **Ohio (US East)**, Build `npm install`, Start `npm start`, Instance **Free**.
+- [ ] En **Environment Variables** pega, **exactamente iguales**, los valores del gestor: `NODE_ENV`, `DATABASE_URL`, `SESSION_SECRET`, `DATA_ENCRYPTION_KEY`, `SURVEY_URL`, `EMAIL_PROVIDER`, `GMAIL_SCRIPT_URL`, `GMAIL_SCRIPT_SECRET`, `OPEN_FINANCE_PROVIDER`, `CONSENT_MONTHS`, `ADMIN_USER`, `ADMIN_PASSWORD` (y las de Brevo si las usaban). Cuidado con espacios al inicio o al final.
+- [ ] **Deploy Web Service**. Luego en **Settings → Health Check Path** escribe `/api/salud`.
+
+**Comprobar**
+- [ ] En **Logs** aparece `🚀 Auto-Wealth funcionando`.
+- [ ] Abre `https://<tu-servicio>.onrender.com/api/salud` → debe responder `{"ok":true,"baseDeDatos":"conectada"}`.
+- [ ] **Entra con un usuario que ya existía** (pídeselo a Juanes): si entra y ve sus movimientos sin "(no se pudo leer)", entonces `DATABASE_URL` y `DATA_ENCRYPTION_KEY` quedaron bien.
+- [ ] Prueba registro nuevo (llega el correo), panel y Banco Ceiba.
+
+**Cambio definitivo**
+- [ ] Avísale a Juanes que ya funciona: él **suspende** su servicio viejo (no lo borra todavía).
+- [ ] Actualiza la URL nueva en `README.md` (PR) y avísale a Aleja si la encuesta o algún texto la menciona.
+- [ ] Si el Apps Script de correos tiene la URL vieja de la app en `URL_APP`, cámbiala y publica una versión nueva.
+
+**Listo cuando:** la app funciona en tu URL con los usuarios de siempre y el servicio viejo está suspendido.
 
 ### Sesión 3 · Día de instalación del equipo
 - [ ] Reúnete (o haz llamada) con quien no haya logrado correr la app y resuélvanlo juntos.
@@ -98,7 +117,7 @@ Juanes crea el repositorio y sube el código; tú quedas como **administrador**.
 
 ### Sesión 2 · Publicar la versión `v1.0`
 - [ ] Viernes 6, congelamiento de código: tras fusionar lo último, en GitHub ve a **Releases → Draft a new release** → etiqueta `v1.0` y escribe las notas de la versión (qué incluye, con la ayuda de todos).
-- [ ] Con Juanes, confirma en Render que publicó exactamente esa versión.
+- [ ] En Render → **Events**, confirma que publicó exactamente esa versión (el commit de `v1.0`).
 - [ ] Revisa que `README.md` y `docs/` estén al día.
 
 ### Sesión 3 · Tu parte de la presentación

@@ -40,7 +40,7 @@ Este documento cuenta **cómo llegamos aquí y por qué** se tomaron las decisio
 | Servicio | Para qué | Quién administra |
 |---|---|---|
 | GitHub (repositorio `autowealth`) | Código, issues, revisiones | Juanes (dueño) y Samu (administrador). Los 5 son colaboradores |
-| Render | Servidor en internet | **Juanes** (el plan gratuito admite una sola persona). Samu lo acompaña en llamada |
+| Render | Servidor en internet | **Samu**, en su propia cuenta (el plan gratuito admite una sola persona). El servicio viejo de Juanes se suspende tras el traspaso |
 | Neon | Base de datos | Cuenta de Juanes. **Garavito** invitado como colaborador del proyecto para administrar las ramas |
 | Gmail del proyecto + Apps Script | Correos | Samu |
 | Google Forms | Encuesta (ver [encuesta.md](encuesta.md)) | Aleja |

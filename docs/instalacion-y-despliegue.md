@@ -84,9 +84,11 @@ Si cambias el script, publícalo con **Implementar → Administrar implementacio
 
 ## 4. Publicar en Render
 
-> **El servicio ya existe** en la cuenta de Render de Juanes. El plan gratuito (*Hobby*) admite **una sola persona** por espacio de trabajo; agregar más personas requiere el plan Pro (de pago). No es necesario: Render publica solo cada vez que algo llega a `main`, así que el equipo trabaja desde GitHub. Lo que haya que hacer dentro de Render lo hace Juanes, en llamada con Samu. Los pasos de abajo son para crear el servicio desde cero, si algún día hiciera falta.
+> **Render es de Samu.** El plan gratuito (*Hobby*) admite **una sola persona** por espacio de trabajo, así que el servicio vive en la cuenta de Samu. El resto del equipo no necesita entrar: Render publica solo cada vez que algo llega a `main`. Si necesitas ver un error de Render, pídele a Samu los **Logs**.
+>
+> **Traspaso desde la cuenta de Juanes (Semana 1):** Samu crea un servicio nuevo con estos pasos y **las mismas variables** del servicio viejo (Juanes se las pasa por el gestor de contraseñas). Como usa la misma `DATABASE_URL` y la misma `DATA_ENCRYPTION_KEY`, los usuarios y sus datos siguen ahí. Cuando funcione, Juanes suspende su servicio. **La URL de la app cambia**: actualícenla en el `README.md` y en el Apps Script (`URL_APP`).
 
-1. En [render.com](https://render.com) (entra con GitHub): **New → Web Service** → elige el repositorio `autowealth`.
+1. En [render.com](https://render.com) (entra con GitHub; necesitas ser Admin del repositorio): **New → Web Service** → elige el repositorio `autowealth`. Si no aparece, usa **Configure GitHub** para darle acceso a Render.
 2. Configura:
    - **Branch:** `main`
    - **Region:** Ohio (US East)
@@ -97,11 +99,12 @@ Si cambias el script, publícalo con **Implementar → Administrar implementacio
 4. **Deploy Web Service**. En **Logs** debe aparecer `🚀 Auto-Wealth funcionando`.
 5. **Auto-Deploy** queda activado: cada vez que algo se fusiona en `main`, Render publica solo en 2 o 3 minutos. Por eso **a `main` solo llega código revisado** (ver [CONTRIBUTING.md](../CONTRIBUTING.md)).
 6. **Health Check Path** (en Settings): `/api/salud`. Render revisa con esa ruta que la app esté viva.
+7. **Comprueba con un usuario que ya existía:** si entra y ve sus movimientos sin "(no se pudo leer)", la base de datos y la clave de cifrado quedaron bien.
 
 > **Plan gratuito:** si nadie entra en 15 minutos, el servidor se "duerme". La siguiente visita tarda cerca de 1 minuto. Antes de una presentación, abre el enlace unos minutos antes.
 
-### Si ya existía el servicio con el repositorio anterior
-En Render → **Settings → Build & Deploy → Repository**, cambia al repositorio nuevo. Las variables de entorno se conservan.
+### Si algo sale mal en el traspaso
+Mientras el servicio viejo de Juanes esté solo **suspendido** (no borrado), se puede reactivar con **Resume Web Service** en un minuto. Por eso se borra una semana después.
 
 ---
 
