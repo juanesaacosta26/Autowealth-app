@@ -48,11 +48,16 @@ Si ves `🚀 Auto-Wealth funcionando en http://localhost:3000`, quedó listo. Si
 
 ## 2. Base de datos en Neon
 
+La base de datos de producción **ya existe**, en la cuenta de Neon de Juanes.
+
+**Juanes** (una vez): invita **solo a Garavito** (y, si quieren, a Samu como respaldo) al proyecto de Neon. Neon recomienda hacerlo desde la **organización** (*Organization → Members/Collaborators*) dando permiso **solo sobre este proyecto**. La opción antigua *Settings → Collaborators* del proyecto está siendo retirada. Los demás **no** necesitan cuenta de Neon: reciben solo la cadena de conexión de su rama.
+
+> ¿Por qué no invitar a todos? Quien tiene acceso al proyecto ve también la rama `main`, con los datos reales de los usuarios. Menos personas con acceso significa menos riesgo.
+
 **Garavito** (una vez):
-1. En [neon.com](https://neon.com), entra al proyecto `autowealth` (región **AWS US East 2 – Ohio**).
-2. **Settings → Collaborators**: invita al equipo, o comparte las cadenas de conexión por mensaje privado.
-3. **Branches → New branch**, a partir de `main`. Crea `dev-juanes`, `dev-garavito`, `dev-aleja`, `dev-david`, `dev-samu` y `pruebas`.
-4. A cada persona le envía **en privado** la *Connection string* de su rama (botón **Connect** con la rama elegida).
+1. En [neon.com](https://neon.com), entra al proyecto (aparece en tu organización o en "Shared with me"). Región: **AWS US East 2 – Ohio**.
+2. **Branches → New branch**, a partir de `main`. Crea `dev-juanes`, `dev-garavito`, `dev-aleja`, `dev-david`, `dev-samu` y `pruebas`.
+3. A cada persona le envía **en privado** la *Connection string* de su rama (botón **Connect** con la rama elegida).
 
 **Cada integrante:** pega su cadena en `DATABASE_URL` de su `.env`. Las tablas se crean solas al arrancar el servidor.
 
@@ -78,6 +83,8 @@ Si cambias el script, publícalo con **Implementar → Administrar implementacio
 ---
 
 ## 4. Publicar en Render
+
+> **El servicio ya existe** en la cuenta de Render de Juanes. El plan gratuito (*Hobby*) admite **una sola persona** por espacio de trabajo; agregar más personas requiere el plan Pro (de pago). No es necesario: Render publica solo cada vez que algo llega a `main`, así que el equipo trabaja desde GitHub. Lo que haya que hacer dentro de Render lo hace Juanes, en llamada con Samu. Los pasos de abajo son para crear el servicio desde cero, si algún día hiciera falta.
 
 1. En [render.com](https://render.com) (entra con GitHub): **New → Web Service** → elige el repositorio `autowealth`.
 2. Configura:

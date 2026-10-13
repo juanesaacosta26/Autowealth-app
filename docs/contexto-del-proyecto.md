@@ -39,9 +39,9 @@ Este documento cuenta **cómo llegamos aquí y por qué** se tomaron las decisio
 
 | Servicio | Para qué | Quién administra |
 |---|---|---|
-| GitHub (organización o repositorio `autowealth`) | Código, issues, revisiones | Samu (con Juanes como segundo administrador) |
-| Render | Servidor en internet | Samu |
-| Neon | Base de datos | Garavito |
+| GitHub (repositorio `autowealth`) | Código, issues, revisiones | Juanes (dueño) y Samu (administrador). Los 5 son colaboradores |
+| Render | Servidor en internet | **Juanes** (el plan gratuito admite una sola persona). Samu lo acompaña en llamada |
+| Neon | Base de datos | Cuenta de Juanes. **Garavito** invitado como colaborador del proyecto para administrar las ramas |
 | Gmail del proyecto + Apps Script | Correos | Samu |
 | Google Forms | Encuesta (ver [encuesta.md](encuesta.md)) | Aleja |
 

@@ -3,6 +3,7 @@
 **Tu área:** que el proyecto funcione y sea seguro: GitHub, Render, revisión automática, pruebas, correos, seguridad y la versión final.
 **Tus archivos:** `.github/`, `tests/`, `src/seguridad.js`, `src/sesion.js`, `src/http.js`, `src/cifrado.js`, `src/config.js`, `src/correo.js`, `apps-script/` y `docs/instalacion-y-despliegue.md`, `docs/seguridad-y-cumplimiento.md`.
 **Trabajas con todos:** eres quien desbloquea a los demás cuando algo de entorno falla.
+**Accesos:** eres administrador del repositorio en GitHub. Render y Neon producción están en la cuenta de Juanes (Render gratis admite una sola persona); Garavito administra Neon. Para lo que se haga en Render, trabaja en llamada con Juanes.
 
 > Regla de tu área: **`main` siempre funciona.** Lo que llega a `main` se publica solo en Render, así que nada entra sin revisión de otra persona ni con la revisión automática en rojo.
 
@@ -27,9 +28,11 @@ Juanes crea el repositorio y sube el código; tú quedas como **administrador**.
 
 **Listo cuando:** la regla de `main` está activa y el primer PR de prueba muestra la revisión automática.
 
-### Sesión 2 · Render y secretos
-- [ ] En Render, conecta el servicio al repositorio nuevo (**Settings → Build & Deploy → Repository**) o crea uno nuevo siguiendo [instalacion-y-despliegue.md §4](../instalacion-y-despliegue.md#4-publicar-en-render).
-- [ ] Revisa las variables de entorno contra la tabla de la [§5](../instalacion-y-despliegue.md#5-variables-de-configuración) y configura **Health Check Path** en `/api/salud`.
+### Sesión 2 · Render y secretos (con Juanes)
+> El servicio de Render **ya existe** y está en la cuenta de Juanes. El plan gratuito de Render admite **una sola persona** por espacio de trabajo, así que tú no puedes entrar. No hace falta: Render publica solo cada vez que algo llega a `main` en GitHub. Esta sesión la haces **en llamada con Juanes**, que comparte pantalla.
+- [ ] Con Juanes: en Render → **Settings → Build & Deploy → Repository**, cambien al repositorio nuevo `autowealth` (si Render pide permiso para ver el repositorio, autorícenlo en GitHub).
+- [ ] Revisen juntos las variables de entorno contra la tabla de la [§5](../instalacion-y-despliegue.md#5-variables-de-configuración) y configuren **Health Check Path** en `/api/salud`.
+- [ ] Acuerden cómo te pasa Juanes los **logs** cuando algo falle (captura o copia del texto de Render → Logs).
 - [ ] Crea un gestor de contraseñas compartido (Bitwarden gratuito: *Organizations*). Guarda allí las claves de producción, **en especial `DATA_ENCRYPTION_KEY`**.
 - [ ] Verifica que la app publicada funciona: registro, panel y Banco Ceiba.
 
@@ -95,7 +98,7 @@ Juanes crea el repositorio y sube el código; tú quedas como **administrador**.
 
 ### Sesión 2 · Publicar la versión `v1.0`
 - [ ] Viernes 6, congelamiento de código: tras fusionar lo último, en GitHub ve a **Releases → Draft a new release** → etiqueta `v1.0` y escribe las notas de la versión (qué incluye, con la ayuda de todos).
-- [ ] Confirma que Render publicó exactamente esa versión.
+- [ ] Con Juanes, confirma en Render que publicó exactamente esa versión.
 - [ ] Revisa que `README.md` y `docs/` estén al día.
 
 ### Sesión 3 · Tu parte de la presentación
