@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mi panel · Auto-Wealth</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%92%B0%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<script>
+  try { const t = localStorage.getItem('theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); document.documentElement.setAttribute('data-theme', t); } catch (e) {}
+</script>
+<link rel="stylesheet" href="/assets/panel.css">
+</head>
+<body>
+  <header class="barra">
+    <a class="marca" href="/">Auto·Wealth</a>
+    <span class="saludo" id="saludo"></span>
+    <button class="icono-btn" id="btnTema" aria-label="Cambiar entre modo claro y oscuro"><i class="fas fa-circle-half-stroke"></i></button>
+    <button class="btn chico" id="btnSalir"><i class="fas fa-right-from-bracket"></i> Salir</button>
+  </header>
+  <nav class="pestanas" role="tablist" aria-label="Secciones del panel">
+    <button role="tab" id="t-resumen" aria-controls="p-resumen" aria-selected="true" data-tab="resumen">Resumen</button>
+    <button role="tab" id="t-movimientos" aria-controls="p-movimientos" aria-selected="false" data-tab="movimientos">Movimientos</button>
+    <button role="tab" id="t-cuentas" aria-controls="p-cuentas" aria-selected="false" data-tab="cuentas">Cuentas y bancos</button>
+    <button role="tab" id="t-privacidad" aria-controls="p-privacidad" aria-selected="false" data-tab="privacidad">Privacidad</button>
+  </nav>
+  <div class="aviso" id="aviso" role="status" aria-live="polite"></div>
+
+  <main>
+    <!-- ======================= RESUMEN ======================= -->
+    <section role="tabpanel" id="p-resumen" aria-labelledby="t-resumen">
+      <div id="resumenVacio" hidden>
+        <div class="bloque vacio-grande">
+          <h1>Empecemos a ordenar tus finanzas</h1>
+          <p>Para mostrarte en qué se va tu dinero, necesitamos tus movimientos. Elige cómo quieres traerlos. Puedes combinar las tres opciones.</p>
+          <div class="caminos">
+            <button class="camino" data-accion="conectar"><i class="fas fa-building-columns"></i><b>Conectar mi banco</b><span>Autorizas la consulta en tu banco y traemos tus movimientos de los últimos 12 meses.</span></button>
+            <button class="camino" data-accion="importar"><i class="fas fa-file-arrow-up"></i><b>Subir un extracto</b><span>Descarga el extracto en CSV desde tu banco y súbelo aquí.</span></button>
+            <button class="camino" data-accion="registrar"><i class="fas fa-pen-to-square"></i><b>Registrar a mano</b><span>Anota ingresos y gastos uno por uno, incluido el efectivo.</span></button>
+          </div>
+        </div>
+      </div>
+
+      <div id="resumenDatos" hidden>
+        <div class="cabecera-mes">
+          <span class="mes-etiqueta" id="mesEtiqueta"></span>
+          <label class="sr" for="selMes">Mes</label>
+          <select id="selMes" class="control"></select>
+        </div>
+        <p class="declaracion" id="declaracion"></p>
+        <p class="remate" id="remate"></p>
+        <div class="datos-linea" id="datosLinea"></div>
+
+        <div class="grid-2">
+          <div class="bloque">
+            <h2>Ingresos y gastos</h2>
+            <p class="sub">Últimos 6 meses</p>
+            <div class="leyenda" aria-hidden="true"><span><i style="background:var(--serie-ingresos)"></i>Ingresos</span><span><i style="background:var(--serie-gastos)"></i>Gastos</span></div>
+            <div class="grafica" id="graficaMeses"></div>
+            <details class="tabla-alt"><summary>Ver como tabla</summary><div id="tablaMeses"></div></details>
+          </div>
+          <div class="bloque">
+            <h2>En qué gastaste</h2>
+            <p class="sub" id="subCategorias">Toca una categoría para ver sus movimientos</p>
+            <div class="barras-cat" id="barrasCat"></div>
+          </div>
+        </div>
+
+        <div class="bloque" style="margin-top:20px">
+          <h2>Recomendaciones</h2>
+          <ul class="consejos" id="consejos"></ul>
+        </div>
+
+        <div class="grid-2" style="margin-top:20px">
+          <div class="bloque">
+            <h2>Pagos que se repiten cada mes</h2>
+            <p class="sub">Suscripciones y servicios detectados en los últimos 4 meses</p>
+            <ul class="lista" id="recurrentes"></ul>
+          </div>
+          <div class="bloque">
+            <h2>Gastos hormiga</h2>
+            <p class="sub">Compras de $25.000 o menos en el mes</p>
+            <div id="hormiga"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================= MOVIMIENTOS ======================= -->
+    <section role="tabpanel" id="p-movimientos" aria-labelledby="t-movimientos" hidden>
+      <div class="bloque">
+        <div class="herramientas">
+          <div class="campo"><label for="fMes">Mes</label><select id="fMes"></select></div>
+          <div class="campo"><label for="fCuenta">Cuenta</label><select id="fCuenta"></select></div>
+          <div class="campo"><label for="fCategoria">Categoría</label><select id="fCategoria"></select></div>
+          <div class="campo buscar"><label for="fTexto">Buscar</label><input id="fTexto" type="search" placeholder="Ej. Rappi, arriendo…"></div>
+          <button class="btn primario" data-accion="registrar"><i class="fas fa-plus"></i> Registrar movimiento</button>
+        </div>
+        <p class="totales-filtro" id="totalesFiltro"></p>
+        <div class="tabla-scroll">
+          <table class="movs">
+            <thead><tr><th></th><th>Fecha</th><th>Descripción</th><th>Categoría</th><th style="text-align:right">Valor</th><th><span class="sr">Acciones</span></th></tr></thead>
+            <tbody id="cuerpoMovs"></tbody>
+          </table>
+        </div>
+        <div id="movsVacio" class="vacio" hidden></div>
+      </div>
+    </section>
+
+    <!-- ======================= CUENTAS Y BANCOS ======================= -->
+    <section role="tabpanel" id="p-cuentas" aria-labelledby="t-cuentas" hidden>
+      <div class="pila">
+        <div class="bloque">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+            <div><h2>Bancos conectados</h2><p class="sub" style="margin-bottom:0">Conexión de solo lectura mediante Open Finance. Puedes revocarla cuando quieras.</p></div>
+            <button class="btn primario" data-accion="conectar"><i class="fas fa-building-columns"></i> Conectar un banco</button>
+          </div>
+          <div id="listaConexiones" style="margin-top:8px"></div>
+        </div>
+
+        <div class="bloque">
+          <h2>Tus cuentas</h2>
+          <div id="listaCuentas"></div>
+        </div>
+
+        <div class="bloque">
+          <h2>Agregar una cuenta manual</h2>
+          <p class="sub">Para efectivo, billeteras o bancos que todavía no puedes conectar.</p>
+          <form class="form-linea" id="formCuenta">
+            <div class="campo"><label for="cNombre">Nombre</label><input id="cNombre" maxlength="60" placeholder="Ej. Efectivo, Nequi, Daviplata" required></div>
+            <div class="campo"><label for="cTipo">Tipo</label><select id="cTipo"></select></div>
+            <div class="campo"><label for="cSaldo">Saldo actual</label><input id="cSaldo" inputmode="numeric" placeholder="0"></div>
+            <button class="btn" type="submit"><i class="fas fa-plus"></i> Agregar</button>
+          </form>
+        </div>
+
+        <div class="bloque" id="bloqueImportar">
+          <h2>Importar un extracto</h2>
+          <p class="sub">Descárgalo desde la página de tu banco en formato CSV. El archivo se lee en tu navegador; al servidor solo llegan fecha, descripción y valor.</p>
+          <ol class="pasos">
+            <li>
+              <h3>Elige el archivo</h3>
+              <input type="file" id="archivoCsv" accept=".csv,.txt,text/csv">
+            </li>
+            <li id="pasoMapeo" hidden>
+              <h3>Indica qué columna es cada dato</h3>
+              <label class="acepto" style="margin-bottom:10px"><input type="checkbox" id="tieneTitulos" checked> La primera fila son títulos</label>
+              <div class="mapeo">
+                <div class="campo"><label for="colFecha">Fecha</label><select id="colFecha"></select></div>
+                <div class="campo"><label for="colDesc">Descripción</label><select id="colDesc"></select></div>
+                <div class="campo"><label for="modoValor">Cómo vienen los valores</label>
+                  <select id="modoValor"><option value="una">Una columna (gastos con signo menos)</option><option value="dos">Dos columnas: débitos y créditos</option></select></div>
+                <div class="campo" id="campoValor"><label for="colValor">Valor</label><select id="colValor"></select></div>
+                <div class="campo" id="campoDebito" hidden><label for="colDebito">Débitos (salidas)</label><select id="colDebito"></select></div>
+                <div class="campo" id="campoCredito" hidden><label for="colCredito">Créditos (entradas)</label><select id="colCredito"></select></div>
+              </div>
+              <label class="acepto" style="margin-top:10px"><input type="checkbox" id="invertir"> Invertir signos (si los gastos aparecen como positivos)</label>
+            </li>
+            <li id="pasoRevisar" hidden>
+              <h3>Revisa e importa</h3>
+              <p id="resumenCsv" class="sub" style="margin:0 0 8px"></p>
+              <div class="tabla-scroll"><table class="vista-previa" id="previa"></table></div>
+              <div class="herramientas" style="margin-top:14px">
+                <div class="campo"><label for="destinoCsv">Guardar en</label><select id="destinoCsv"></select></div>
+                <div class="campo" id="campoNuevaCuenta"><label for="nombreNuevaCuenta">Nombre de la cuenta nueva</label><input id="nombreNuevaCuenta" maxlength="60" placeholder="Ej. Cuenta de ahorros Davivienda"></div>
+                <button class="btn primario" id="btnImportar"><i class="fas fa-file-import"></i> Importar movimientos</button>
+              </div>
+            </li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================= PRIVACIDAD ======================= -->
+    <section role="tabpanel" id="p-privacidad" aria-labelledby="t-privacidad" hidden>
+      <div class="pila">
+        <div class="bloque">
+          <h2>Cómo cuidamos tu información</h2>
+          <ul class="garantias">
+            <li><i class="fas fa-key"></i><span><b>Nunca vemos la clave de tu banco.</b> La autorización se hace en la página de tu banco.</span></li>
+            <li><i class="fas fa-eye"></i><span><b>Solo lectura.</b> Auto-Wealth no puede mover tu dinero ni hacer pagos.</span></li>
+            <li><i class="fas fa-lock"></i><span><b>Datos cifrados.</b> Las descripciones de tus movimientos y los accesos a bancos se guardan cifrados (AES-256).</span></li>
+            <li><i class="fas fa-ban"></i><span><b>No vendemos tus datos</b> ni los compartimos para publicidad.</span></li>
+            <li><i class="fas fa-rotate-left"></i><span><b>Tú decides.</b> Revoca autorizaciones, descarga o borra tus datos cuando quieras.</span></li>
+          </ul>
+          <p style="margin:16px 0 0;font-size:.9rem"><a href="/privacidad" target="_blank" rel="noopener">Leer la política de tratamiento de datos</a></p>
+        </div>
+
+        <div class="bloque">
+          <h2>Autorizaciones de Open Finance</h2>
+          <p class="sub">Cada permiso que diste para consultar un banco, con su finalidad y vigencia.</p>
+          <div id="listaAutorizaciones"></div>
+        </div>
+
+        <div class="bloque">
+          <h2>Historial de actividad</h2>
+          <p class="sub">Lo que se ha hecho con tu información financiera.</p>
+          <ul class="historial" id="historial"></ul>
+        </div>
+
+        <div class="bloque">
+          <h2>Tus datos</h2>
+          <p class="sub">Descarga una copia de todo lo que tenemos sobre ti, o bórralo.</p>
+          <div class="zona-peligro">
+            <a class="btn" href="/api/privacidad/exportar" id="btnExportar"><i class="fas fa-download"></i> Descargar mis datos</a>
+            <button class="btn peligro" id="btnBorrarFinanzas"><i class="fas fa-eraser"></i> Borrar mi información financiera</button>
+            <button class="btn peligro" id="btnEliminarCuenta"><i class="fas fa-user-xmark"></i> Eliminar mi cuenta</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ======================= DIÁLOGOS ======================= -->
+  <dialog id="dlgMovimiento" aria-labelledby="dlgMovTitulo">
+    <form class="dlg" id="formMovimiento" method="dialog">
+      <h2 id="dlgMovTitulo">Registrar un movimiento</h2>
+      <p class="sub">Se guarda en tus cuentas manuales.</p>
+      <div class="grid-form">
+        <div class="campo ancho"><span class="segmentado" role="radiogroup" aria-label="Tipo de movimiento">
+          <label><input type="radio" name="tipo" value="gasto" checked><span>Gasto</span></label>
+          <label><input type="radio" name="tipo" value="ingreso"><span>Ingreso</span></label>
+        </span></div>
+        <div class="campo"><label for="mFecha">Fecha</label><input type="date" id="mFecha" required></div>
+        <div class="campo"><label for="mValor">Valor (COP)</label><input id="mValor" inputmode="numeric" placeholder="Ej. 45000" required></div>
+        <div class="campo ancho"><label for="mDesc">Descripción</label><input id="mDesc" maxlength="120" placeholder="Ej. Almuerzo, arriendo, venta de bicicleta" required></div>
+        <div class="campo"><label for="mCategoria">Categoría</label><select id="mCategoria"></select></div>
+        <div class="campo"><label for="mCuenta">Cuenta</label><select id="mCuenta"></select></div>
+      </div>
+      <p class="error-form" id="mError" hidden></p>
+      <div class="pie">
+        <button type="button" class="btn" data-cerrar>Cancelar</button>
+        <button type="submit" class="btn primario" id="mGuardar">Guardar movimiento</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlgConectar" aria-labelledby="dlgConTitulo">
+    <div class="dlg">
+      <div id="conPaso1">
+        <h2 id="dlgConTitulo">Conectar un banco</h2>
+        <p class="sub">Elige tu banco. En este prototipo los bancos son de prueba y los datos son ficticios.</p>
+        <div class="lista-bancos" id="listaBancos" role="radiogroup" aria-label="Bancos disponibles"></div>
+        <div class="pie">
+          <button type="button" class="btn" data-cerrar>Cancelar</button>
+          <button type="button" class="btn primario" id="conSiguiente" disabled>Continuar</button>
+        </div>
+      </div>
+      <div id="conPaso2" hidden>
+        <h2>Autoriza la consulta</h2>
+        <p class="sub" id="conBancoNombre"></p>
+        <dl class="consent" id="textoConsent"></dl>
+        <label class="acepto"><input type="checkbox" id="conAcepto"> <span id="conAceptoTexto"></span></label>
+        <p class="nota-segura"><i class="fas fa-shield-halved"></i><span>Te llevaremos a la página de tu banco para que confirmes. Auto-Wealth nunca te pedirá la clave de tu banco.</span></p>
+        <p class="error-form" id="conError" hidden></p>
+        <div class="pie">
+          <button type="button" class="btn" id="conAtras">Atrás</button>
+          <button type="button" class="btn primario" id="conIr" disabled>Continuar al banco</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="dlgConfirmar" aria-labelledby="dlgConfTitulo">
+    <form class="dlg" id="formConfirmar" method="dialog">
+      <h2 id="dlgConfTitulo"></h2>
+      <p id="dlgConfTexto" style="color:var(--text-2)"></p>
+      <div class="campo" id="dlgConfClave" hidden><label for="confPassword">Escribe tu contraseña para confirmar</label><input type="password" id="confPassword" autocomplete="current-password"></div>
+      <p class="error-form" id="confError" hidden></p>
+      <div class="pie">
+        <button type="button" class="btn" data-cerrar>Cancelar</button>
+        <button type="submit" class="btn peligro" id="confBoton"></button>
+      </div>
+    </form>
+  </dialog>
+
+<script src="/assets/panel.js"></script>
+</body>
+</html>

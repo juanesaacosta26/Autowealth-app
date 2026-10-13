@@ -1,0 +1,38 @@
+# Revisión automática: corre en cada Pull Request y en cada cambio a main.
+# 1) Revisa que todos los archivos JavaScript no tengan errores de sintaxis.
+# 2) Arranca una base de datos PostgreSQL temporal y corre las pruebas (npm test).
+# Si algo falla, el Pull Request muestra una ❌ y no se debe fusionar.
+name: Revisión automática
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: autowealth_pruebas
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Instalar dependencias
+        run: npm install --no-audit --no-fund
+      - name: Revisar sintaxis de todos los archivos .js
+        run: |
+          for f in $(git ls-files '*.js'); do node --check "$f" || exit 1; done
+      - name: Pruebas de la API
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/autowealth_pruebas
+        run: npm test

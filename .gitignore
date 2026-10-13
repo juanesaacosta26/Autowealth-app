@@ -1,0 +1,14 @@
+# Dependencias (se instalan con npm install)
+node_modules/
+
+# Configuración con claves: NUNCA se sube
+.env
+.env.*
+!.env.example
+
+# Archivos del sistema y del editor
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
