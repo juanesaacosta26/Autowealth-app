@@ -28,8 +28,10 @@ async function buscarConsentimientoPorState(stateHash) {
 
 async function cambiarEstadoConsentimiento(id, estado) {
   await pool.query(
-    `UPDATE consentimientos SET estado = $2, state_hash = NULL,
-            revocado_en = CASE WHEN $2 = 'revocado' THEN now() ELSE revocado_en END
+    // $2 se usa dos veces: se le indica el tipo (::varchar) en ambas para que PostgreSQL
+    // no deduzca tipos distintos ("inconsistent types deduced for parameter $2")
+    `UPDATE consentimientos SET estado = $2::varchar, state_hash = NULL,
+            revocado_en = CASE WHEN $2::varchar = 'revocado' THEN now() ELSE revocado_en END
       WHERE id = $1`, [id, estado]);
 }
 
@@ -265,8 +267,9 @@ async function buscarRedireccionPorState(stateHash) {
 // Cambia el estado y borra la huella del state: el enlace de regreso ya no sirve otra vez
 async function cerrarRedireccion(id, estado, idPagoExterno = null) {
   await pool.query(
-    `UPDATE redirecciones SET estado = $2, state_hash = NULL, id_pago_externo = $3,
-            ejecutado_en = CASE WHEN $2 = 'ejecutada' THEN now() ELSE NULL END
+    // $2 se usa dos veces: mismo tipo explícito en ambas (ver cambiarEstadoConsentimiento)
+    `UPDATE redirecciones SET estado = $2::varchar, state_hash = NULL, id_pago_externo = $3,
+            ejecutado_en = CASE WHEN $2::varchar = 'ejecutada' THEN now() ELSE NULL END
       WHERE id = $1`, [id, estado, idPagoExterno]);
 }
 
