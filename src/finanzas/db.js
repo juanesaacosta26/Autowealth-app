@@ -27,11 +27,17 @@ async function buscarConsentimientoPorState(stateHash) {
 }
 
 async function cambiarEstadoConsentimiento(id, estado) {
+  // $2 se usa dos veces: como VARCHAR (columna estado) y comparado con texto.
+  // Sin el ::text, PostgreSQL responde "inconsistent types deduced for parameter $2".
   await pool.query(
-    // $2 se usa dos veces: se le indica el tipo (::varchar) en ambas para que PostgreSQL
-    // no deduzca tipos distintos ("inconsistent types deduced for parameter $2")
-    `UPDATE consentimientos SET estado = $2::varchar, state_hash = NULL,
-            revocado_en = CASE WHEN $2::varchar = 'revocado' THEN now() ELSE revocado_en END
+async function cambiarEstadoConsentimiento(id, estado) {
+  // $2 se usa dos veces: como VARCHAR (columna estado) y comparado con texto.
+  // Sin el ::text, PostgreSQL responde "inconsistent types deduced for parameter $2".
+  await pool.query(
+    `UPDATE consentimientos SET estado = $2::text, state_hash = NULL,
+            revocado_en = CASE WHEN $2::text = 'revocado' THEN now() ELSE revocado_en END
+      WHERE id = $1`, [id, estado]);
+}
       WHERE id = $1`, [id, estado]);
 }
 
