@@ -147,9 +147,9 @@ Usa `cuentaId` (cuenta manual existente) **o** `nombreCuentaNueva`. **201:** `{ 
 Ver el flujo completo en [open-finance.md](open-finance.md).
 
 ### `GET /api/openfinance/bancos`
-`{ "ok": true, "proveedor": "simulado", "bancos": [ { "id": "ceiba", "nombre": "Banco Ceiba", "tipo": "banco", "demo": true } ], "consentimiento": { "version": "OF-2026-10-v1", "receptor": "Auto-Wealth", "datos": [...], "finalidad": "...", "duracionMeses": 12, "tipoAcceso": "...", "derechos": "..." } }`
+`{ "ok": true, "proveedor": "simulado", "bancos": [ { "id": "ceiba", "nombre": "Banco Ceiba", "tipo": "banco", "demo": true } ], "consentimiento": { "version": "OF-2026-10-v2", "receptor": "Auto-Wealth", "datos": [...], "finalidad": "...", "duracionMeses": 12, "tipoAcceso": "...", "derechos": "..." } }`
 
-El objeto `consentimiento` es el texto **oficial** que se muestra antes de autorizar. Si se cambia, hay que subir la `version`.
+El objeto `consentimiento` es el texto **oficial** que se muestra antes de autorizar. Si se cambia, hay que subir la `version`. La `v2` (17 oct 2026) aclara en `tipoAcceso` que esta autorización es de solo lectura y que cada pago necesita una autorización aparte (ver §7).
 
 ### `POST /api/openfinance/consentimientos`
 `{ "institucion": "ceiba", "acepta": true }` → **201** `{ "ok": true, "url": "/banco-demo/autorizar?banco=ceiba&state=..." }`. La página debe llevar al usuario a esa `url`. **429:** 10 solicitudes en 15 min.
@@ -169,6 +169,7 @@ Trae lo nuevo del banco. **200:** `{ "ok": true, "nuevos": 12, "cuentas": 2 }`. 
 
 ### Páginas del banco de prueba *(solo con `OPEN_FINANCE_PROVIDER=simulado`)*
 `GET /banco-demo/autorizar` (pantalla del banco) y `POST /banco-demo/autorizar` (formulario con `state`, `banco` y `decision=autorizar|rechazar`).
+`GET /banco-demo/pagar?pago=...` (pantalla de un pago) y `POST /banco-demo/pagar` (formulario con `pago` y `decision=autorizar|rechazar`). Ver §7.
 
 ---
 
@@ -177,8 +178,8 @@ Trae lo nuevo del banco. **200:** `{ "ok": true, "nuevos": 12, "cuentas": 2 }`. 
 | Ruta | Qué hace |
 |---|---|
 | `GET /api/privacidad` | `{ consentimientos: [...], historial: [...], textoConsentimiento }`. El historial son las últimas 60 acciones de la tabla `auditoria` |
-| `GET /api/privacidad/exportar` | Descarga un JSON con **todos** los datos del usuario (derecho de acceso). Nunca incluye `password_hash` |
-| `POST /api/privacidad/borrar-finanzas` | `{ "password": "..." }`. Revoca todos los bancos y borra cuentas y movimientos. **401** si la clave es incorrecta (5 intentos por 15 min) |
+| `GET /api/privacidad/exportar` | Descarga un JSON con **todos** los datos del usuario (derecho de acceso), incluidas `deudas` y `pagos_e_inversiones`. Nunca incluye `password_hash` |
+| `POST /api/privacidad/borrar-finanzas` | `{ "password": "..." }`. Revoca todos los bancos y borra cuentas, movimientos, deudas y solicitudes de pago. **401** si la clave es incorrecta (5 intentos por 15 min) |
 | `POST /api/privacidad/eliminar-cuenta` | `{ "password": "..." }`. Borra al usuario y todo lo relacionado, y cierra la sesión |
 
 ---
@@ -221,3 +222,80 @@ Protegido con usuario y contraseña del navegador (`ADMIN_USER` / `ADMIN_PASSWOR
 | `POST /api/recuperar/confirmar` | `{ token, password }` | `{ ok: true }` y cierra las sesiones anteriores. **400** si el token es inválido o venció |
 
 Reglas de seguridad: en la base de datos se guarda solo la **huella** del token (`huella()` de `src/cifrado.js`), no el token. Máximo 3 solicitudes por correo cada hora. Cada uso queda en `auditoria`.
+
+---
+
+## 7. Deudas, dinero ocioso y pagos simulados — `src/finanzas/deudas.js` y `src/openfinance/pagos.js` *(requieren sesión)*
+
+> ⚠️ **Prototipo.** Los pagos solo funcionan con el banco de prueba y son **simulados**: no se mueve dinero real. El plan es **educación financiera, no asesoría de inversión**. Por qué y qué haría falta para hacerlo de verdad: [redireccion-de-dinero.md](redireccion-de-dinero.md).
+
+### Deudas
+| Método y ruta | Cuerpo | Respuesta |
+|---|---|---|
+| `GET /api/finanzas/deudas` | — | `{ ok, deudas: [ { id, nombre, tipo, tipoNombre, saldo, tasaEA, cuotaMinima, diaPago, actualizadoEn } ], total, tipos: [ { id, nombre } ] }`. Ordenadas de la tasa más alta a la más baja |
+| `POST /api/finanzas/deudas` | `{ nombre, tipo, saldo, tasaEA, cuotaMinima?, diaPago? }` | **201** `{ ok, id }`. **400** si algo no es válido o ya hay 30 deudas |
+| `PATCH /api/finanzas/deudas/:id` | Cualquiera de `{ nombre, saldo, tasaEA, cuotaMinima, diaPago }` | `{ ok }`. Lo que no se envía no cambia. `saldo: 0` = deuda pagada. `diaPago: null` lo borra. **404** si no existe o no es tuya |
+| `DELETE /api/finanzas/deudas/:id` | — | `{ ok }`. **404** si no existe o no es tuya |
+
+- `tipo`: `tarjeta_credito`, `consumo`, `libre_inversion`, `vehiculo`, `hipotecario`, `educativo`, `libranza` u `otro`.
+- `tasaEA`: tasa **efectiva anual** en %, de 0 a 100 (ej. `28.5`). `saldo` y `cuotaMinima` en pesos. `diaPago` de 1 a 31.
+- El `nombre` se guarda **cifrado** (revela con quién está endeudada la persona).
+
+### `GET /api/finanzas/plan`
+Calcula el dinero ocioso y el plan sugerido con los datos de hoy.
+```json
+{ "ok": true,
+  "plan": {
+    "mes": "2026-10", "disponible": 32724798, "gastoPromedio": 4861625, "mesesReserva": 3, "reserva": 14584875,
+    "dineroOcioso": 18139923, "movible": 32724798, "deudaTotal": 7250000,
+    "pasos": [
+      { "tipo": "pago_deuda", "deudaId": 1, "nombre": "Tarjeta Visa", "deudaTipo": "tarjeta_credito", "tasaEA": 27.9,
+        "monto": 850000, "liquida": true, "interesesEvitadosAnio": 237150 },
+      { "tipo": "pago_deuda", "deudaId": 2, "nombre": "Crédito libre inversión", "deudaTipo": "libre_inversion", "tasaEA": 19.5,
+        "monto": 6400000, "liquida": true, "interesesEvitadosAnio": 1248000 },
+      { "tipo": "inversion", "destino": "renta_fija", "monto": 10889923 } ],
+    "notas": [] },
+  "cuentasOrigen": [ { "id": 3, "nombre": "Cuenta de Ahorros", "tipo": "ahorros", "ultimos4": "4129", "saldo": 32724798 } ],
+  "destinos": [ { "id": "cdt", "nombre": "CDT (certificado de depósito a término)", "explicacion": "..." },
+                { "id": "fondo_renta_fija", "nombre": "Fondo de inversión colectiva de renta fija", "explicacion": "..." } ],
+  "autorizacionPago": { "version": "PG-2026-10-v1", "condiciones": ["Es un pago único...", "..."] },
+  "aviso": "Esto es educación financiera, no asesoría de inversión...", "simulado": true }
+```
+Cómo se calcula (`planDineroOcioso` en `src/finanzas/analisis.js`):
+- `disponible` = saldo de cuentas de ahorros, corrientes, billeteras y efectivo (igual que en el resumen).
+- `gastoPromedio` = gasto promedio de los 3 meses completos anteriores. `reserva` = `gastoPromedio × 3` (**colchón de emergencia, nunca se toca**).
+- `dineroOcioso` = `disponible − reserva − pagos pendientes de confirmar` (nunca negativo). **Sin historia de gastos es 0**, por prudencia.
+- `pasos`: abonos a las deudas de la tasa más alta a la más baja (método avalancha) y, si sobra, `inversion` en renta fija. La suma de los pasos es `dineroOcioso`.
+- `interesesEvitadosAnio` = `monto × tasaEA` (aproximación de un año, sin capitalización).
+- `movible`: lo que está en cuentas de **bancos conectados**. El efectivo y las cuentas manuales cuentan como disponibles, pero ese dinero lo mueve la persona.
+- `cuentasOrigen`: cuentas de bancos conectados (ahorros, corriente o billetera) con saldo positivo, desde las que se puede pedir un pago.
+
+### `POST /api/finanzas/redirecciones`
+Pide un pago único a partir de un paso del plan. **No mueve dinero**: devuelve la `url` de la pantalla del banco, donde la persona lo confirma.
+```json
+{ "tipo": "pago_deuda", "deudaId": 1, "cuentaId": 3, "monto": 850000, "acepta": true }
+{ "tipo": "inversion", "destino": "cdt | fondo_renta_fija", "cuentaId": 3, "monto": 500000, "acepta": true }
+```
+**201** `{ "ok": true, "id": 7, "url": "/banco-demo/pagar?pago=..." }`. La página debe llevar a la persona a esa `url`.
+
+| Código | Cuándo |
+|---|---|
+| 400 | `tipo` o `destino` inválidos, `monto` menor de $1.000, `acepta` distinto de `true`, la cuenta no es de un banco conectado (o es tarjeta), el valor supera el saldo de la cuenta o de la deuda, o **tocaría el colchón de emergencia** (el mensaje dice cuánto se puede mover) |
+| 404 | La cuenta o la deuda no existe o no es tuya |
+| 409 | La autorización de ese banco venció |
+| 429 | Más de 10 solicitudes en 15 minutos |
+
+Mientras una solicitud está pendiente (15 minutos), su valor se descuenta del dinero ocioso: no se puede pedir dos veces el mismo dinero.
+
+### `GET /openfinance/retorno-pago?state=...&code=...` *(no es /api: es una página)*
+Aquí regresa la persona desde el banco. Redirige (303) a:
+- `/app?pago=ejecutado#plan`: el banco confirmó. Se descuenta de la deuda (si era un pago de deuda) y se sincroniza el banco: aparece el movimiento y baja el saldo.
+- `/app?pago=rechazado#plan`: la persona rechazó en el banco. No se mueve nada.
+- `/app?pago=sin-fondos#plan`: el banco no tenía saldo suficiente.
+- `/app?pago=invalido#plan`: el `state` no existe, no es de esta persona, ya se usó o tiene más de 15 minutos.
+- `/app?pago=error#plan`: no se pudo confirmar con el banco.
+
+Los movimientos que crea el banco: `PAGO DEUDA <TIPO>` (categoría *Deudas y créditos*), `PAGO TARJETA DE CREDITO` e `INVERSION RENTA FIJA CDT|FONDO` (*Movimiento entre cuentas*: invertir no es gastar).
+
+### `GET /api/finanzas/redirecciones`
+`{ ok, redirecciones: [ { id, tipo, deuda_id, destino, destinoNombre, cuenta_nombre, monto, estado, simulado, creado_en, ejecutado_en } ], totales: { abonadoDeudas, invertido } }`. `estado`: `pendiente`, `ejecutada`, `rechazada` o `fallida`. Máximo las 200 más recientes.

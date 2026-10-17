@@ -23,6 +23,7 @@
   <nav class="pestanas" role="tablist" aria-label="Secciones del panel">
     <button role="tab" id="t-resumen" aria-controls="p-resumen" aria-selected="true" data-tab="resumen">Resumen</button>
     <button role="tab" id="t-movimientos" aria-controls="p-movimientos" aria-selected="false" data-tab="movimientos">Movimientos</button>
+    <button role="tab" id="t-plan" aria-controls="p-plan" aria-selected="false" data-tab="plan">Deudas y plan</button>
     <button role="tab" id="t-cuentas" aria-controls="p-cuentas" aria-selected="false" data-tab="cuentas">Cuentas y bancos</button>
     <button role="tab" id="t-privacidad" aria-controls="p-privacidad" aria-selected="false" data-tab="privacidad">Privacidad</button>
   </nav>
@@ -109,6 +110,41 @@
       </div>
     </section>
 
+    <!-- ======================= DEUDAS Y PLAN ======================= -->
+    <section role="tabpanel" id="p-plan" aria-labelledby="t-plan" hidden>
+      <div class="pila">
+        <div class="bloque">
+          <div class="cabecera-mes"><span class="mes-etiqueta">Tu dinero ocioso</span><span class="chip">Prototipo · pagos simulados</span></div>
+          <p class="declaracion" id="planDeclaracion"></p>
+          <p class="remate" id="planRemate"></p>
+          <div id="planEcuacion"></div>
+          <ul class="notas-plan" id="planNotas"></ul>
+        </div>
+
+        <div class="bloque">
+          <h2>Plan sugerido</h2>
+          <p class="sub">Primero las deudas con la tasa más alta; lo que sobre, a renta fija. Cada pago lo confirmas tú en tu banco.</p>
+          <ol class="plan-pasos" id="planPasos"></ol>
+          <p class="aviso-legal" id="planAviso"></p>
+        </div>
+
+        <div class="bloque">
+          <div class="titulo-accion">
+            <div><h2>Tus deudas</h2><p class="sub" style="margin-bottom:0">Créditos, tarjetas y libranzas. La tasa efectiva anual (EA) aparece en el extracto de cada deuda.</p></div>
+            <button class="btn primario" id="btnNuevaDeuda"><i class="fas fa-plus"></i> Registrar deuda</button>
+          </div>
+          <div id="listaDeudas" style="margin-top:8px"></div>
+        </div>
+
+        <div class="bloque">
+          <h2>Pagos e inversiones</h2>
+          <p class="sub">Lo que has movido desde Auto-Wealth. En este prototipo todo es simulado con el banco de prueba.</p>
+          <div class="datos-linea" id="totalesRedir" style="border-top:0;padding-top:0;margin-bottom:8px"></div>
+          <ul class="lista" id="historialRedir"></ul>
+        </div>
+      </div>
+    </section>
+
     <!-- ======================= CUENTAS Y BANCOS ======================= -->
     <section role="tabpanel" id="p-cuentas" aria-labelledby="t-cuentas" hidden>
       <div class="pila">
@@ -180,7 +216,7 @@
           <h2>Cómo cuidamos tu información</h2>
           <ul class="garantias">
             <li><i class="fas fa-key"></i><span><b>Nunca vemos la clave de tu banco.</b> La autorización se hace en la página de tu banco.</span></li>
-            <li><i class="fas fa-eye"></i><span><b>Solo lectura.</b> Auto-Wealth no puede mover tu dinero ni hacer pagos.</span></li>
+            <li><i class="fas fa-eye"></i><span><b>Nada se mueve sin ti.</b> La conexión con tu banco es de solo lectura. Cada pago o inversión lo confirmas tú en tu banco, uno por uno.</span></li>
             <li><i class="fas fa-lock"></i><span><b>Datos cifrados.</b> Las descripciones de tus movimientos y los accesos a bancos se guardan cifrados (AES-256).</span></li>
             <li><i class="fas fa-ban"></i><span><b>No vendemos tus datos</b> ni los compartimos para publicidad.</span></li>
             <li><i class="fas fa-rotate-left"></i><span><b>Tú decides.</b> Revoca autorizaciones, descarga o borra tus datos cuando quieras.</span></li>
@@ -261,6 +297,48 @@
         </div>
       </div>
     </div>
+  </dialog>
+
+  <dialog id="dlgDeuda" aria-labelledby="dlgDeudaTitulo">
+    <form class="dlg" id="formDeuda" method="dialog">
+      <h2 id="dlgDeudaTitulo">Registrar una deuda</h2>
+      <p class="sub">Con estos datos calculamos qué deuda conviene pagar primero.</p>
+      <div class="grid-form">
+        <div class="campo ancho"><label for="dNombre">Nombre</label><input id="dNombre" maxlength="60" placeholder="Ej. Tarjeta Visa, crédito del carro" required></div>
+        <div class="campo"><label for="dTipo">Tipo</label><select id="dTipo"></select></div>
+        <div class="campo"><label for="dSaldo">Cuánto debes hoy (COP)</label><input id="dSaldo" inputmode="numeric" placeholder="Ej. 3.500.000" required></div>
+        <div class="campo"><label for="dTasa">Tasa efectiva anual (% EA)</label><input id="dTasa" inputmode="decimal" placeholder="Ej. 28,5" required></div>
+        <div class="campo"><label for="dCuota">Cuota mínima mensual (opcional)</label><input id="dCuota" inputmode="numeric" placeholder="Ej. 250.000"></div>
+        <div class="campo"><label for="dDia">Día de pago (opcional)</label><input id="dDia" type="number" min="1" max="31" placeholder="Ej. 15"></div>
+      </div>
+      <p class="error-form" id="dError" hidden></p>
+      <div class="pie">
+        <button type="button" class="btn" data-cerrar>Cancelar</button>
+        <button type="submit" class="btn primario" id="dGuardar">Guardar deuda</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlgPago" aria-labelledby="dlgPagoTitulo">
+    <form class="dlg" id="formPago" method="dialog">
+      <h2 id="dlgPagoTitulo"></h2>
+      <p class="sub" id="pagoSub"></p>
+      <div class="grid-form">
+        <div class="campo"><label for="pCuenta">Desde</label><select id="pCuenta"></select></div>
+        <div class="campo"><label for="pMonto">Valor (COP)</label><input id="pMonto" inputmode="numeric" required></div>
+      </div>
+      <fieldset class="destinos" id="pDestinos" hidden>
+        <legend>¿Dónde lo quieres poner?</legend>
+        <div id="pDestinosLista"></div>
+      </fieldset>
+      <div class="consent" id="pAutorizacion"></div>
+      <label class="acepto"><input type="checkbox" id="pAcepto"> <span>Autorizo esta solicitud de pago único y entiendo que la confirmo en mi banco.</span></label>
+      <p class="error-form" id="pError" hidden></p>
+      <div class="pie">
+        <button type="button" class="btn" data-cerrar>Cancelar</button>
+        <button type="submit" class="btn primario" id="pIr" disabled>Continuar al banco</button>
+      </div>
+    </form>
   </dialog>
 
   <dialog id="dlgConfirmar" aria-labelledby="dlgConfTitulo">

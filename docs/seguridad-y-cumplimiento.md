@@ -20,6 +20,9 @@
 | Archivos del servidor expuestos | `/assets/` solo acepta nombres simples (sin `../`) y extensiones conocidas | `server.js` |
 | Abuso de la API | Cuerpos de máximo 10 KB (1 MB para importar) y límites de intentos | `src/http.js` y rutas |
 | Acciones irreversibles por error | Borrar datos o eliminar la cuenta pide la contraseña otra vez | `src/finanzas/rutas.js` |
+| Mover dinero sin permiso | Auto-Wealth nunca mueve dinero solo: cada pago es único, lo autoriza la persona en su banco y su regreso usa un `state` de un solo uso (15 min) atado a la sesión | `src/openfinance/pagos.js` |
+| Dejar a alguien sin colchón | La API rechaza cualquier pago que toque el fondo de emergencia (3 meses de gastos) o que supere el saldo de la cuenta o de la deuda. Sin historia de gastos no hay dinero ocioso | `src/finanzas/analisis.js`, `src/openfinance/pagos.js` |
+| Pedir dos veces el mismo dinero | Las solicitudes pendientes se descuentan del dinero ocioso; máximo 10 solicitudes cada 15 min | `src/openfinance/pagos.js` |
 | Claves en el código | Todo secreto va en variables de entorno, `.env` está en `.gitignore` y el servidor no arranca si falta alguno | `src/config.js` |
 
 ### Pendientes conocidos (trabajo de este mes)
@@ -65,6 +68,8 @@ Basada en el [OWASP Top 10](https://owasp.org/Top10/):
 | **Decreto 0368 de 2026** (finanzas abiertas obligatorias) | El consentimiento debe decir quién recibe los datos, cuáles, para qué y por cuánto tiempo | Pantalla de autorización y tabla `consentimientos` con versión del texto |
 | **Superintendencia Financiera (SFC)** | Estándares técnicos y directorio de participantes de finanzas abiertas | Pendiente: no aplica mientras se usen bancos de prueba |
 | **Superintendencia de Industria y Comercio (SIC)** | Registro Nacional de Bases de Datos (si la empresa está obligada) y reporte de incidentes de seguridad | Pendiente para producción |
+| **Decreto 661 de 2018** (asesoría en el mercado de valores) | Recomendar inversiones a la medida de cada persona es "asesoría" y solo la pueden dar entidades vigiladas por la SFC, con profesionales inscritos | El plan es **educación financiera**: tipos genéricos (CDT, fondo de renta fija), sin entidades, productos ni rentabilidades. Ver [redireccion-de-dinero.md](redireccion-de-dinero.md) |
+| **Mover dinero de terceros** (pagos, captación, administración de recursos) | Iniciar pagos desde la cuenta de una persona, o recibir su dinero para pagar o invertir, requiere licencia o alianza con una entidad vigilada | Solo **simulado** con el banco de prueba. Pendiente para producción |
 
 ### Antes de tener usuarios reales
 - [ ] Constituir una empresa (por ejemplo una SAS).
@@ -74,3 +79,4 @@ Basada en el [OWASP Top 10](https://owasp.org/Top10/):
 - [ ] Contratos de transmisión de datos con los proveedores en el exterior (Render, Neon, Google).
 - [ ] Planes pagos con copias de seguridad, gestor de secretos para `DATA_ENCRYPTION_KEY`, verificación en dos pasos y una prueba de penetración externa.
 - [ ] Mantener las recomendaciones como **educación financiera**: recomendar productos de inversión específicos a cada persona puede ser una actividad regulada.
+- [ ] **Antes de mover dinero real:** concepto de un abogado en derecho financiero sobre iniciación de pagos y asesoría, y un aliado vigilado por la SFC (banco, SEDPE, sociedad fiduciaria o comisionista). Ver [redireccion-de-dinero.md](redireccion-de-dinero.md).

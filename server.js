@@ -8,6 +8,7 @@
 //   3. Envía el correo con la encuesta a cada persona que se registra.
 //   4. Panel financiero: Open Finance (conexión con bancos), registro manual,
 //      importación de extractos, análisis y centro de privacidad.
+//   5. Deudas y plan para el dinero ocioso, con pagos simulados en el banco de prueba.
 //
 //  Para arrancarlo:  npm start   → abre http://localhost:3000
 // =====================================================================
@@ -19,7 +20,9 @@ const config = require('./src/config');
 const db = require('./src/db');
 const rutas = require('./src/rutas');
 const finanzas = require('./src/finanzas/rutas');
+const deudas = require('./src/finanzas/deudas');
 const openfinance = require('./src/openfinance');
+const pagos = require('./src/openfinance/pagos');
 const { manejarAdmin } = require('./src/admin');
 const { usuarioActual } = require('./src/sesion');
 const { aplicarCabecerasSeguridad, enviarJson, mismoOrigen } = require('./src/http');
@@ -73,6 +76,14 @@ const API = [
   ['POST', '/api/finanzas/cuentas', finanzas.crearCuenta],
   ['DELETE', '/api/finanzas/cuentas/:id', finanzas.eliminarCuenta],
   ['POST', '/api/finanzas/importar', finanzas.importar],
+
+  ['GET', '/api/finanzas/deudas', deudas.listarDeudas],
+  ['POST', '/api/finanzas/deudas', deudas.crearDeuda],
+  ['PATCH', '/api/finanzas/deudas/:id', deudas.actualizarDeuda],
+  ['DELETE', '/api/finanzas/deudas/:id', deudas.eliminarDeuda],
+  ['GET', '/api/finanzas/plan', deudas.plan],
+  ['GET', '/api/finanzas/redirecciones', deudas.listarRedirecciones],
+  ['POST', '/api/finanzas/redirecciones', pagos.crearRedireccion],
 
   ['GET', '/api/openfinance/bancos', openfinance.bancos],
   ['POST', '/api/openfinance/consentimientos', openfinance.crearConsentimiento],
@@ -128,6 +139,7 @@ async function atender(req, res) {
 
   // 2) Regreso desde el banco y páginas del proveedor de Open Finance
   if (ruta === '/openfinance/retorno' && req.method === 'GET') return openfinance.retorno(req, res, url);
+  if (ruta === '/openfinance/retorno-pago' && req.method === 'GET') return pagos.retornoPago(req, res, url);
   if (ruta.startsWith('/banco-demo/') && await openfinance.manejarRutaProveedor(req, res, ruta, url)) return;
 
   // 3) Panel de administración

@@ -19,6 +19,12 @@ const ACCIONES = {
   extracto_importado: 'Importaste un extracto',
   datos_exportados: 'Descargaste una copia de tus datos',
   finanzas_borradas: 'Borraste toda tu información financiera',
+  deuda_registrada: 'Registraste una deuda',
+  deuda_actualizada: 'Actualizaste una deuda',
+  deuda_eliminada: 'Eliminaste una deuda',
+  redireccion_solicitada: 'Pediste mover dinero ocioso (pago o inversión)',
+  redireccion_ejecutada: 'Autorizaste en tu banco un pago o una inversión',
+  redireccion_rechazada: 'Un pago o una inversión no se hizo',
 };
 
 async function registrar(usuarioId, accion, detalle = '') {

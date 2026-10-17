@@ -164,6 +164,51 @@ table.movs select:hover, table.movs select:focus { border-color: var(--border-st
   table.movs td.c-acc { grid-column: 3; grid-row: 3; text-align: right; }
 }
 
+/* ---------- Deudas y plan ---------- */
+.titulo-accion { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.ecuacion { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px 18px; padding: 16px 0 10px; border-top: 1px solid var(--border); }
+.ecuacion div { display: flex; flex-direction: column; }
+.ecuacion span { font-size: .82rem; color: var(--muted); }
+.ecuacion b { font-size: 1.1rem; }
+.ecuacion .acento { color: var(--accent); }
+.ecuacion .signo { font-size: 1.4rem; color: var(--muted); font-weight: 600; padding-bottom: 2px; }
+.barra-ocioso { display: flex; height: 28px; border-radius: var(--radio-chico); overflow: hidden; background: var(--grid); margin: 6px 0 4px; }
+.barra-ocioso span { display: flex; align-items: center; padding: 0 10px; min-width: 0; }
+.barra-ocioso i { font-style: normal; font-size: .78rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.barra-ocioso .colchon { background: var(--card-2); color: var(--text-2); border-right: 2px solid var(--card); }
+.barra-ocioso .libre { flex: 1; background: var(--accent); color: var(--card); }
+.notas-plan { list-style: none; padding: 0; margin: 12px 0 0; display: flex; flex-direction: column; gap: 8px; }
+.notas-plan li { display: flex; gap: 10px; font-size: .88rem; color: var(--text-2); }
+.notas-plan i { color: var(--accent); margin-top: 4px; }
+.plan-pasos { list-style: none; counter-reset: paso; padding: 0; margin: 0; }
+.plan-pasos > li { counter-increment: paso; display: grid; grid-template-columns: 32px 1fr auto; gap: 12px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--border); }
+.plan-pasos > li:last-child { border-bottom: 0; }
+.plan-pasos > li::before { content: counter(paso); width: 28px; height: 28px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-strong); font-weight: 700; display: grid; place-items: center; font-size: .9rem; }
+.plan-pasos > li.vacio-paso { display: block; color: var(--muted); }
+.plan-pasos > li.vacio-paso::before { content: none; }
+.plan-pasos .texto { min-width: 0; }
+.plan-pasos .texto .chip { margin-left: 4px; vertical-align: 1px; }
+.plan-pasos .detalle { display: block; margin-top: 4px; color: var(--muted); font-size: .86rem; }
+.aviso-legal { font-size: .84rem; color: var(--muted); background: var(--card-2); border-radius: var(--radio-chico); padding: 10px 12px; margin: 14px 0 0; }
+.deuda-fila { display: grid; grid-template-columns: 40px 1fr auto auto; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.deuda-fila .ico { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-strong); }
+.deuda-fila .detalle { color: var(--muted); font-size: .85rem; }
+.acciones-fila { display: flex; gap: 2px; }
+.total-deudas { margin: 12px 0 0; color: var(--text-2); font-size: .92rem; text-align: right; }
+fieldset.destinos { border: 0; padding: 0; margin: 14px 0 0; }
+fieldset.destinos legend { font-size: .85rem; font-weight: 600; color: var(--text-2); margin-bottom: 6px; padding: 0; }
+.opcion-destino { display: flex; gap: 12px; align-items: flex-start; border: 1px solid var(--border-strong); border-radius: var(--radio); padding: 12px 14px; cursor: pointer; margin-bottom: 8px; font-size: .9rem; }
+.opcion-destino:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.opcion-destino input { margin-top: 4px; accent-color: var(--accent); }
+.opcion-destino .detalle { color: var(--text-2); font-size: .84rem; }
+@media (max-width: 720px) {
+  .plan-pasos > li { grid-template-columns: 32px 1fr; }
+  .plan-pasos > li .btn { grid-column: 2; justify-self: start; }
+  .deuda-fila { grid-template-columns: 40px 1fr auto; }
+  .deuda-fila .acciones-fila { grid-column: 2 / -1; justify-content: flex-end; }
+  .ecuacion .signo { display: none; }
+}
+
 /* ---------- Cuentas ---------- */
 .tarjeta-banco { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; justify-content: space-between; padding: 16px 0; border-bottom: 1px solid var(--border); }
 .tarjeta-banco:last-child { border-bottom: 0; }
@@ -206,6 +251,8 @@ dialog::backdrop { background: rgba(15, 10, 26, 0.55); }
 .dlg .pie { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; flex-wrap: wrap; }
 .dlg .grid-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .dlg .grid-form .ancho { grid-column: 1 / -1; }
+.dlg .grid-form > .campo { min-width: 0; } /* que un <select> con texto largo no ensanche el diálogo */
+.dlg .grid-form select { width: 100%; text-overflow: ellipsis; }
 @media (max-width: 520px) { .dlg .grid-form { grid-template-columns: 1fr; } }
 .segmentado { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 999px; padding: 3px; gap: 3px; }
 .segmentado label { padding: 6px 14px; border-radius: 999px; cursor: pointer; font-weight: 600; font-size: .88rem; color: var(--text-2); }

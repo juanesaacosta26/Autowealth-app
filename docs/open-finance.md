@@ -75,3 +75,41 @@ Crear `src/openfinance/<proveedor>.js` con estas funciones y registrarlo en `PRO
 Luego se agrega el nombre a la lista permitida en `src/config.js` y se cambia `OPEN_FINANCE_PROVIDER`. El panel, el cifrado, el consentimiento y la privacidad no cambian.
 
 **Antes de conectar bancos reales:** ver la lista de [seguridad-y-cumplimiento.md](seguridad-y-cumplimiento.md).
+
+## Iniciación de pagos (simulada)
+
+La autorización de Open Finance es de **solo lectura**. Para mover el dinero ocioso (abonar a una deuda o invertir) cada pago necesita una **autorización aparte**, que la persona confirma en su banco. Hoy solo existe con el banco de prueba: ver [redireccion-de-dinero.md](redireccion-de-dinero.md) para saber por qué y qué faltaría para hacerlo real.
+
+```mermaid
+sequenceDiagram
+    actor U as Usuario
+    participant P as Panel (/app#plan)
+    participant S as Servidor Auto-Wealth
+    participant B as Banco (proveedor)
+    participant D as Base de datos
+
+    U->>P: Elige un paso del plan, la cuenta y el valor, y acepta
+    P->>S: POST /api/finanzas/redirecciones
+    S->>S: Valida: cuenta conectada, saldo, deuda, colchón de emergencia
+    S->>D: Redirección "pendiente" + huella del state
+    S->>B: crearPago(token, cuenta, monto, concepto, state)
+    B-->>S: url de la pantalla del pago
+    S-->>P: url
+    P->>B: Redirige a la pantalla del banco
+    U->>B: Revisa valor, cuenta y concepto, y autoriza
+    B-->>S: GET /openfinance/retorno-pago?state&code
+    S->>S: Verifica: state existe, es de este usuario, pendiente, < 15 min
+    S->>B: confirmarPago(code) → idPago (el banco revisa el saldo y hace el pago)
+    S->>D: Redirección "ejecutada", baja el saldo de la deuda
+    S->>B: obtenerDatos(token) → el pago llega como movimiento
+    S-->>P: Redirige a /app?pago=ejecutado#plan
+```
+
+Funciones adicionales que debe ofrecer un proveedor que permita pagos:
+
+| Función | Recibe | Devuelve |
+|---|---|---|
+| `crearPago({ token, usuarioId, institucion, cuentaIdExterno, monto, concepto, state, receptor })` | Datos del pago (llamada servidor a servidor) | `{ url }` de la pantalla del banco |
+| `confirmarPago({ code, state })` | Código del regreso | `{ idPago }`. Lanza un error si el código no sirve o no hay fondos |
+
+El banco de prueba guarda los pagos en su "libro" (`banco_demo_pagos`) y los devuelve en `obtenerDatos` como movimientos `pago-<id>`, restando del saldo. Su pantalla `/banco-demo/pagar` lleva la franja de **ENTORNO DE PRUEBAS** y no tiene campo de clave.

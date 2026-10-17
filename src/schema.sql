@@ -117,3 +117,61 @@ CREATE TABLE IF NOT EXISTS auditoria (
     creado_en   TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS auditoria_usuario_idx ON auditoria (usuario_id, creado_en DESC);
+
+-- =====================================================================
+--  DEUDAS Y REDIRECCIÓN DEL DINERO OCIOSO (octubre de 2026)
+-- =====================================================================
+
+-- Deudas que el usuario registra a mano (créditos, tarjetas, libranzas…).
+-- El nombre (ej. "Crédito libre inversión Banco X") va CIFRADO: revela con quién está endeudada la persona.
+CREATE TABLE IF NOT EXISTS deudas (
+    id              SERIAL PRIMARY KEY,
+    usuario_id      INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    nombre_cifrado  TEXT          NOT NULL,
+    tipo            VARCHAR(30)   NOT NULL,          -- tarjeta_credito | consumo | libre_inversion | vehiculo | hipotecario | educativo | libranza | otro
+    saldo           NUMERIC(16,2) NOT NULL CHECK (saldo >= 0),   -- lo que falta por pagar
+    tasa_ea         NUMERIC(6,2)  NOT NULL CHECK (tasa_ea >= 0), -- tasa de interés efectiva anual, en %
+    cuota_minima    NUMERIC(16,2) NOT NULL DEFAULT 0 CHECK (cuota_minima >= 0),
+    dia_pago        SMALLINT CHECK (dia_pago BETWEEN 1 AND 31),
+    creado_en       TIMESTAMPTZ   NOT NULL DEFAULT now(),
+    actualizado_en  TIMESTAMPTZ   NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS deudas_usuario_idx ON deudas (usuario_id);
+
+-- Cada vez que el usuario pide mover dinero ocioso: abonar a una deuda o invertir en renta fija.
+-- Funciona como "iniciación de pagos": el usuario autoriza CADA pago en su banco.
+-- En este prototipo el banco es de prueba, así que todo pago es SIMULADO (simulado = true).
+CREATE TABLE IF NOT EXISTS redirecciones (
+    id                 SERIAL PRIMARY KEY,
+    usuario_id         INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    tipo               VARCHAR(20)   NOT NULL,       -- pago_deuda | inversion
+    deuda_id           INTEGER REFERENCES deudas(id) ON DELETE SET NULL,
+    destino            VARCHAR(30),                  -- solo inversión: cdt | fondo_renta_fija
+    conexion_id        INTEGER REFERENCES conexiones(id) ON DELETE SET NULL,
+    cuenta_id_externo  VARCHAR(80)   NOT NULL,       -- cuenta de origen en el banco (se guarda aunque luego se revoque el banco)
+    cuenta_nombre      VARCHAR(80)   NOT NULL,
+    monto              NUMERIC(16,2) NOT NULL CHECK (monto > 0),
+    estado             VARCHAR(20)   NOT NULL,       -- pendiente | ejecutada | rechazada | fallida
+    version_texto      VARCHAR(20)   NOT NULL,       -- versión del texto de autorización que aceptó
+    simulado           BOOLEAN       NOT NULL DEFAULT true,
+    state_hash         VARCHAR(64),                  -- huella del state (protege el regreso desde el banco); se borra al usarse
+    id_pago_externo    VARCHAR(80),                  -- número del pago en el banco
+    creado_en          TIMESTAMPTZ   NOT NULL DEFAULT now(),
+    ejecutado_en       TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS redirecciones_usuario_idx ON redirecciones (usuario_id, creado_en DESC);
+
+-- SOLO PARA EL BANCO DE PRUEBA (src/openfinance/simulado.js): su "libro" de pagos.
+-- Un banco real lleva su propio registro; aquí lo imitamos para que, al sincronizar,
+-- el pago aparezca como un movimiento más y el saldo baje.
+CREATE TABLE IF NOT EXISTS banco_demo_pagos (
+    id                 SERIAL PRIMARY KEY,
+    usuario_id         INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    institucion        VARCHAR(80)   NOT NULL,
+    cuenta_id_externo  VARCHAR(80)   NOT NULL,
+    fecha              DATE          NOT NULL DEFAULT CURRENT_DATE,
+    monto              NUMERIC(16,2) NOT NULL CHECK (monto > 0),
+    concepto           VARCHAR(80)   NOT NULL,
+    creado_en          TIMESTAMPTZ   NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS banco_demo_pagos_idx ON banco_demo_pagos (usuario_id, institucion);

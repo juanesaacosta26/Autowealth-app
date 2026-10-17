@@ -22,6 +22,7 @@ Este documento cuenta **cómo llegamos aquí y por qué** se tomaron las decisio
 | Oct 6 | **Open Finance** | Se investigó la regulación: el **Decreto 0368 de 2026** hizo obligatorias las finanzas abiertas, pero las APIs estándar aún no están disponibles. Belvo (agregador) hoy cubre Brasil y México, no Colombia. **Decisión:** construir el flujo completo con un **banco de prueba** y dejar el módulo listo para cambiar de proveedor |
 | Oct 6 | **Panel financiero** (`/app`), extractos CSV, registro manual y centro de privacidad | Así la app sirve con datos reales hoy (CSV y manual) mientras llega Open Finance real |
 | Oct 12 | **Repositorio del equipo** y plan de trabajo de 4 semanas | Ver [plan-de-trabajo/](plan-de-trabajo/README.md) |
+| Oct 17 | **Deudas y dinero ocioso:** el equipo quiere llevar el dinero ocioso a pagar deudas o a renta fija | Mover dinero real exige licencias que no tenemos. **Decisión:** registro de deudas, plan educativo (deudas más caras primero, luego renta fija genérica) y **pagos simulados** con el banco de prueba, autorizados uno por uno en el banco. Ver [redireccion-de-dinero.md](redireccion-de-dinero.md) |
 
 ## Decisiones técnicas importantes
 

@@ -6,15 +6,20 @@
 //   2. Si el usuario autoriza, devuelve un código de un solo uso.
 //   3. Ese código se cambia por un "token" de acceso.
 //   4. Con el token se piden cuentas, saldos y movimientos.
+//   5. INICIACIÓN DE PAGOS (simulada): Auto-Wealth pide un pago, el usuario lo
+//      autoriza en la pantalla del banco y el banco lo anota en su "libro"
+//      (tabla banco_demo_pagos). Al sincronizar, el pago aparece como un
+//      movimiento más y el saldo baja, igual que pasaría con un banco real.
 //
 //  Los bancos son FICTICIOS y los datos se generan con un patrón realista de
 //  gastos en Colombia. Nada aquí toca un banco real.
 //
 //  Un proveedor real (API estándar de la SFC o un agregador) debe ofrecer
 //  estas mismas funciones: instituciones, urlAutorizacion, manejarRuta (si aplica),
-//  canjearCodigo, obtenerDatos y revocar.
+//  canjearCodigo, obtenerDatos y revocar. Para pagos: crearPago y confirmarPago.
 // =====================================================================
 const crypto = require('node:crypto');
+const fdb = require('../finanzas/db');
 
 const nombre = 'simulado';
 
@@ -73,7 +78,7 @@ function paginaAutorizacion({ banco, state, alcance, meses, receptor }) {
   <p>Si autorizas, ${esc(banco.nombre)} compartirá con <b>${esc(receptor)}</b> solo lectura de:</p>
   <ul>${items}</ul>
   <div class="meta"><b>Duración:</b> ${meses} meses (hasta el ${vence.toLocaleDateString('es-CO')}) o hasta que la revoques.<br>
-  <b>Tipo de acceso:</b> solo consulta. ${esc(receptor)} no puede mover tu dinero ni hacer pagos.</div>
+  <b>Tipo de acceso:</b> solo consulta. Con este permiso, ${esc(receptor)} no puede mover tu dinero: cada pago necesita una autorización aparte.</div>
   <div class="nota">En un banco real, aquí iniciarías sesión con tu usuario y clave <b>en la página o app oficial del banco</b>.
   ${esc(receptor)} nunca ve ni guarda tu clave.</div>
   <form method="post" action="/banco-demo/autorizar">
@@ -100,6 +105,7 @@ function leerFormulario(req) {
 
 // Atiende las páginas del "banco". Devuelve true si la ruta era suya.
 async function manejarRuta(req, res, ruta, url) {
+  if (ruta === '/banco-demo/pagar') return manejarPago(req, res, url);
   if (ruta !== '/banco-demo/autorizar') return false;
   const html = (estado, contenido) => { res.writeHead(estado, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(contenido); };
 
@@ -146,6 +152,128 @@ async function canjearCodigo({ code, state }) {
   return { token: 'sim_' + datos.banco + '_' + crypto.randomBytes(24).toString('hex') };
 }
 
+// =====================================================================
+//  PAGOS (iniciación de pagos simulada)
+// =====================================================================
+
+// Pagos que Auto-Wealth pidió y el usuario todavía no autoriza (vencen en 15 minutos)
+const pagosPendientes = new Map();
+// Códigos de un solo uso que confirman un pago autorizado (vencen en 5 minutos)
+const codigosPago = new Map();
+setInterval(() => {
+  const ahora = Date.now();
+  for (const [k, v] of pagosPendientes) if (v.vence < ahora) pagosPendientes.delete(k);
+  for (const [k, v] of codigosPago) if (v.vence < ahora) codigosPago.delete(k);
+}, 60_000).unref();
+
+function institucionDelToken(token) {
+  const partes = String(token).split('_');
+  if (partes[0] !== 'sim' || !institucionPorId(partes[1])) throw new Error('Token inválido');
+  return partes[1];
+}
+
+// Auto-Wealth pide un pago (servidor a servidor, con el token de la conexión).
+// Devuelve la URL de la pantalla del banco donde el usuario lo autoriza.
+async function crearPago({ token, usuarioId, institucion, cuentaIdExterno, monto, concepto, state, receptor }) {
+  if (institucionDelToken(token) !== institucion) throw new Error('El token no es de este banco');
+  const id = crypto.randomBytes(18).toString('base64url');
+  pagosPendientes.set(id, {
+    usuarioId, institucion, cuentaIdExterno, monto, concepto: String(concepto).slice(0, 80), state,
+    receptor: String(receptor || 'Auto-Wealth').slice(0, 40), vence: Date.now() + 15 * 60_000,
+  });
+  return { url: '/banco-demo/pagar?' + new URLSearchParams({ pago: id }).toString() };
+}
+
+// Cuenta y saldo actual en el "banco" (incluye los pagos que ya hizo)
+async function cuentaEnBanco(p) {
+  const datos = await datosDelBanco(p.usuarioId, p.institucion);
+  return datos.cuentas.find((c) => c.idExterno === p.cuentaIdExterno) || null;
+}
+
+const formatoPesos = (v) => '$' + Math.round(v).toLocaleString('es-CO');
+
+function paginaPago({ banco, id, p, cuenta }) {
+  const alcanza = cuenta && cuenta.saldo >= p.monto;
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(banco.nombre)} · Autorizar pago (demo)</title>
+<style>
+  *{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#f3f4f6;color:#111827}
+  .demo{background:#fef3c7;color:#78350f;text-align:center;padding:10px 16px;font-size:.85rem;font-weight:600}
+  header{background:${banco.color};color:#fff;padding:18px 16px;display:flex;align-items:center;gap:12px}
+  .logo{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.2);display:grid;place-items:center;font-weight:800;font-size:1.2rem}
+  header b{font-size:1.15rem}main{max-width:520px;margin:24px auto;padding:0 16px}
+  .card{background:#fff;border-radius:14px;padding:24px;box-shadow:0 4px 18px rgba(0,0,0,.06)}
+  h1{font-size:1.25rem;margin:0 0 6px}p{line-height:1.5;color:#374151;font-size:.95rem}
+  .valor{font-size:2rem;font-weight:800;margin:10px 0 4px;font-variant-numeric:tabular-nums}
+  dl{background:#f9fafb;border-radius:10px;padding:12px 14px;font-size:.9rem;margin:14px 0}dt{font-weight:700;margin-top:8px}dt:first-child{margin-top:0}dd{margin:2px 0 0;color:#374151}
+  .nota{border-left:3px solid ${banco.color};padding:8px 12px;font-size:.85rem;color:#4b5563;background:#f9fafb;margin:16px 0}
+  .error{background:#fde8e6;color:#b42318;border-radius:10px;padding:10px 12px;font-size:.9rem;font-weight:600}
+  .acciones{display:flex;gap:10px;margin-top:20px}button{flex:1;border:0;border-radius:10px;padding:14px;font-size:1rem;font-weight:700;cursor:pointer}
+  .si{background:${banco.color};color:#fff}.no{background:#e5e7eb;color:#111827}button:disabled{opacity:.5;cursor:not-allowed}
+</style></head><body>
+<div class="demo">ENTORNO DE PRUEBAS · ${esc(banco.nombre)} es un banco ficticio. Este pago es simulado: no se mueve dinero real.</div>
+<header><div class="logo">${esc(banco.nombre.replace('Banco ', '').charAt(0))}</div><b>${esc(banco.nombre)}</b></header>
+<main><div class="card">
+  <h1>${esc(p.receptor)} quiere iniciar un pago</h1>
+  <p class="valor">${formatoPesos(p.monto)}</p>
+  <dl>
+    <dt>Desde</dt><dd>${cuenta ? `${esc(cuenta.nombre)}${cuenta.ultimos4 ? ' terminada en ' + esc(cuenta.ultimos4) : ''} · saldo ${formatoPesos(cuenta.saldo)}` : 'Cuenta no encontrada'}</dd>
+    <dt>Concepto</dt><dd>${esc(p.concepto)}</dd>
+    <dt>Tipo</dt><dd>Pago único. No autoriza pagos futuros.</dd>
+  </dl>
+  ${alcanza ? '' : '<p class="error">No tienes saldo suficiente en esta cuenta para este pago.</p>'}
+  <div class="nota">En un banco real, aquí iniciarías sesión <b>en la página o app oficial del banco</b> y confirmarías con tu clave o un código.
+  ${esc(p.receptor)} nunca ve ni guarda tu clave.</div>
+  <form method="post" action="/banco-demo/pagar">
+    <input type="hidden" name="pago" value="${esc(id)}">
+    <div class="acciones">
+      <button class="no" name="decision" value="rechazar">Rechazar</button>
+      <button class="si" name="decision" value="autorizar" ${alcanza ? '' : 'disabled'}>Autorizar pago</button>
+    </div>
+  </form>
+</div></main></body></html>`;
+}
+
+// GET muestra el pago; POST recibe la decisión y devuelve al usuario a Auto-Wealth
+async function manejarPago(req, res, url) {
+  const html = (estado, contenido) => { res.writeHead(estado, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(contenido); };
+  const datos = req.method === 'POST' ? await leerFormulario(req) : { pago: url.searchParams.get('pago') };
+  const id = String(datos.pago || '');
+  const p = /^[A-Za-z0-9_-]{20,40}$/.test(id) ? pagosPendientes.get(id) : null;
+  if (!p || p.vence < Date.now()) { html(400, 'La solicitud de pago no existe o venció. Vuelve a Auto-Wealth y empieza de nuevo.'); return true; }
+  const banco = institucionPorId(p.institucion);
+  const cuenta = await cuentaEnBanco(p);
+
+  if (req.method === 'GET') { html(200, paginaPago({ banco, id, p, cuenta })); return true; }
+  if (req.method !== 'POST') return false;
+
+  pagosPendientes.delete(id); // la decisión se toma una sola vez
+  const destino = new URLSearchParams({ state: p.state });
+  if (datos.decision !== 'autorizar') destino.set('error', 'access_denied');
+  else if (!cuenta || cuenta.saldo < p.monto) destino.set('error', 'fondos_insuficientes');
+  else {
+    const code = crypto.randomBytes(24).toString('base64url');
+    codigosPago.set(code, { ...p, vence: Date.now() + 5 * 60_000 });
+    destino.set('code', code);
+  }
+  res.writeHead(303, { Location: '/openfinance/retorno-pago?' + destino.toString() });
+  res.end();
+  return true;
+}
+
+// Auto-Wealth canjea el código: el banco revisa de nuevo el saldo y anota el pago en su libro
+async function confirmarPago({ code, state }) {
+  const p = codigosPago.get(code);
+  codigosPago.delete(code);
+  if (!p || p.vence < Date.now() || p.state !== state) throw new Error('Código de pago inválido o vencido');
+  const cuenta = await cuentaEnBanco(p);
+  if (!cuenta || cuenta.saldo < p.monto) throw new Error('Fondos insuficientes');
+  const id = await fdb.registrarPagoBancoDemo({
+    usuarioId: p.usuarioId, institucion: p.institucion, cuentaIdExterno: p.cuentaIdExterno, monto: p.monto, concepto: p.concepto,
+  });
+  return { idPago: 'demo-' + id };
+}
+
 async function revocar() {
   return true; // en un proveedor real: avisarle al banco que el permiso terminó
 }
@@ -168,7 +296,8 @@ function prng(seed) {
   };
 }
 
-function generar({ usuarioId, institucion, hoy = new Date() }) {
+// pagos = los pagos que el banco ya hizo desde estas cuentas (su "libro", ver confirmarPago)
+function generar({ usuarioId, institucion, hoy = new Date(), pagos = [] }) {
   const banco = institucionPorId(institucion);
   const base = `${usuarioId}:${institucion}`;
   const r0 = prng(semilla(base + ':perfil'));
@@ -279,20 +408,34 @@ function generar({ usuarioId, institucion, hoy = new Date() }) {
     let minimo = 0;
     for (const m of propios) { acumulado += m.monto; minimo = Math.min(minimo, acumulado); }
     const inicial = 200_000 - minimo + entre(r0, 800_000, 5_000_000, 10_000);
-    return { idExterno: c.id, nombre: c.nombre, tipo: c.tipo, ultimos4: perfil.ultimos4[idx], saldo: inicial + acumulado };
+    // Los pagos que hizo el banco bajan el saldo (se calculan aparte para no cambiar el saldo inicial)
+    const pagado = pagos.filter((p) => p.cuenta_id_externo === c.id).reduce((a, p) => a + p.monto, 0);
+    return { idExterno: c.id, nombre: c.nombre, tipo: c.tipo, ultimos4: perfil.ultimos4[idx], saldo: inicial + acumulado - pagado };
   });
+
+  const movimientosPagos = pagos
+    .filter((p) => cuentasDef.some((c) => c.id === p.cuenta_id_externo))
+    .map((p) => ({ cuenta: p.cuenta_id_externo, idExterno: 'pago-' + p.id, fecha: p.fecha, descripcion: p.concepto, monto: -p.monto }));
 
   return {
     cuentas,
-    movimientos: visibles.map((m) => ({ idExternoCuenta: m.cuenta, idExterno: m.idExterno, fecha: m.fecha, descripcion: m.descripcion, monto: m.monto })),
+    movimientos: [...visibles, ...movimientosPagos]
+      .map((m) => ({ idExternoCuenta: m.cuenta, idExterno: m.idExterno, fecha: m.fecha, descripcion: m.descripcion, monto: m.monto })),
   };
 }
 
 // Con el token, el "banco" entrega cuentas, saldos y movimientos
 async function obtenerDatos({ token, usuarioId }) {
-  const partes = String(token).split('_');
-  if (partes[0] !== 'sim' || !institucionPorId(partes[1])) throw new Error('Token inválido');
-  return generar({ usuarioId, institucion: partes[1] });
+  return datosDelBanco(usuarioId, institucionDelToken(token));
 }
 
-module.exports = { nombre, instituciones, institucionPorId, urlAutorizacion, manejarRuta, canjearCodigo, obtenerDatos, revocar, generar };
+// Lo que el banco sabe de esta persona: sus datos generados + los pagos de su libro
+async function datosDelBanco(usuarioId, institucion) {
+  const pagos = await fdb.listarPagosBancoDemo(usuarioId, institucion);
+  return generar({ usuarioId, institucion, pagos });
+}
+
+module.exports = {
+  nombre, instituciones, institucionPorId, urlAutorizacion, manejarRuta, canjearCodigo, obtenerDatos, revocar, generar,
+  crearPago, confirmarPago,
+};

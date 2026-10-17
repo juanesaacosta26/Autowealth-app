@@ -94,6 +94,85 @@ function recomendaciones({ actual, suscripciones, hormiga, mesesFondo, tasaAhorr
   return lista;
 }
 
+// Dinero en cuentas que se pueden usar ya (no cuenta las tarjetas de crédito)
+const dineroDisponible = (cuentas) => cuentas.filter((c) => LIQUIDAS.includes(c.tipo)).reduce((a, c) => a + c.saldo, 0);
+
+// Gasto promedio de los 3 meses completos anteriores (o el del mes actual si no hay historia)
+function gastoPromedioMensual(serie, actual) {
+  const ultimos3 = serie.slice(-4, -1).filter((s) => s.gastos > 0);
+  return ultimos3.length ? ultimos3.reduce((a, s) => a + s.gastos, 0) / ultimos3.length : actual.gastos;
+}
+
+// =====================================================================
+//  PLAN PARA EL DINERO OCIOSO
+//  "Dinero ocioso" = lo que tienes disponible por encima de un colchón de
+//  emergencia de MESES_RESERVA meses de gastos. Ese colchón NUNCA se toca.
+//  Con el ocioso, el plan sugiere (educación financiera, no asesoría):
+//   1. Abonar a las deudas, de la tasa más alta a la más baja ("método avalancha"):
+//      cada peso que abonas a una deuda al 28 % EA deja de costarte 28 % al año.
+//   2. Si sobra, ponerlo en renta fija (CDT o fondo de renta fija), sin
+//      recomendar un producto ni prometer rentabilidad.
+// =====================================================================
+const MESES_RESERVA = 3;
+const CUENTAS_PARA_PAGAR = ['ahorros', 'corriente', 'billetera']; // de dónde puede salir un pago
+
+function planDineroOcioso({ movimientos, cuentas, deudas, mes, pendiente = 0 }) {
+  const serie = mesesAtras(mes, 6).map((mm) => ({ mes: mm, ...totales(movimientos.filter((m) => mesDe(m.fecha) === mm)) }));
+  const actual = totales(movimientos.filter((m) => mesDe(m.fecha) === mes));
+  const disponible = dineroDisponible(cuentas);
+  const gastoPromedio = redondear(gastoPromedioMensual(serie, actual));
+  const reserva = gastoPromedio * MESES_RESERVA;
+  const notas = [];
+
+  // Sin historia de gastos no sabemos cuánto colchón necesitas: por prudencia, no hay dinero ocioso
+  let ocioso = gastoPromedio > 0 ? Math.max(0, redondear(disponible - reserva - pendiente)) : 0;
+  if (gastoPromedio === 0) notas.push('Necesitamos al menos un mes de gastos registrados para calcular tu colchón de emergencia.');
+  if (pendiente > 0) notas.push(`Descontamos ${formatoPesos(pendiente)} de pagos que pediste y todavía no autorizas en tu banco.`);
+
+  // Solo se puede mover dinero desde cuentas de un banco conectado (el efectivo o una cuenta manual no)
+  const movible = redondear(cuentas.filter((c) => c.origen === 'openfinance' && CUENTAS_PARA_PAGAR.includes(c.tipo))
+    .reduce((a, c) => a + Math.max(0, c.saldo), 0));
+
+  const pasos = [];
+  let resto = ocioso;
+  const pendientes = deudas.filter((d) => d.saldo > 0)
+    .sort((a, b) => b.tasa_ea - a.tasa_ea || a.saldo - b.saldo); // tasa más alta primero; si empatan, la más pequeña
+  for (const d of pendientes) {
+    if (resto <= 0) break;
+    const monto = Math.min(resto, redondear(d.saldo));
+    pasos.push({
+      tipo: 'pago_deuda', deudaId: d.id, nombre: d.nombre, deudaTipo: d.tipo, tasaEA: d.tasa_ea, monto,
+      liquida: monto >= d.saldo,
+      // Aproximación sencilla: intereses de un año sobre lo que abonas (no incluye capitalización)
+      interesesEvitadosAnio: redondear(monto * d.tasa_ea / 100),
+    });
+    resto -= monto;
+  }
+  if (resto > 0) pasos.push({ tipo: 'inversion', destino: 'renta_fija', monto: resto });
+
+  const tarjetasConectadas = cuentas.filter((c) => c.origen === 'openfinance' && c.tipo === 'tarjeta_credito' && c.saldo < 0)
+    .reduce((a, c) => a - c.saldo, 0);
+  if (tarjetasConectadas > 0 && !deudas.some((d) => d.tipo === 'tarjeta_credito')) {
+    notas.push(`Tus tarjetas conectadas deben ${formatoPesos(tarjetasConectadas)}. Regístralas como deuda con su tasa para incluirlas en el plan.`);
+  }
+  if (ocioso > movible) {
+    notas.push('Parte de tu dinero ocioso está en efectivo o en cuentas manuales: ese dinero lo mueves tú; desde aquí solo podemos pedir pagos a bancos conectados.');
+  }
+
+  return {
+    mes,
+    disponible: redondear(disponible),
+    gastoPromedio,
+    mesesReserva: MESES_RESERVA,
+    reserva,
+    dineroOcioso: ocioso,
+    movible,
+    deudaTotal: redondear(deudas.reduce((a, d) => a + d.saldo, 0)),
+    pasos,
+    notas,
+  };
+}
+
 // Arma todo el resumen del panel para un mes ("YYYY-MM")
 function resumen({ movimientos, cuentas, mes }) {
   const ventana6 = mesesAtras(mes, 6);
@@ -116,10 +195,9 @@ function resumen({ movimientos, cuentas, mes }) {
     CATEGORIAS_HORMIGA.includes(m.categoria) && !nombresSusc.has(normalizar(m.descripcion)));
   const hormiga = { cantidad: pequenas.length, total: redondear(pequenas.reduce((a, m) => a - m.monto, 0)) };
 
-  const disponible = cuentas.filter((c) => LIQUIDAS.includes(c.tipo)).reduce((a, c) => a + c.saldo, 0);
+  const disponible = dineroDisponible(cuentas);
   const deuda = cuentas.filter((c) => c.tipo === 'tarjeta_credito' && c.saldo < 0).reduce((a, c) => a - c.saldo, 0);
-  const ultimos3 = serie.slice(-4, -1).filter((s) => s.gastos > 0); // 3 meses completos anteriores
-  const gastoPromedio = ultimos3.length ? ultimos3.reduce((a, s) => a + s.gastos, 0) / ultimos3.length : actual.gastos;
+  const gastoPromedio = gastoPromedioMensual(serie, actual);
   const mesesFondo = gastoPromedio > 0 && cuentas.length ? Math.round((disponible / gastoPromedio) * 10) / 10 : null;
   const tasaAhorro = actual.ingresos > 0 ? Math.round(((actual.ingresos - actual.gastos) / actual.ingresos) * 100) : 0;
 
@@ -140,4 +218,4 @@ function resumen({ movimientos, cuentas, mes }) {
   };
 }
 
-module.exports = { resumen, mesesAtras };
+module.exports = { resumen, mesesAtras, planDineroOcioso, MESES_RESERVA, CUENTAS_PARA_PAGAR };

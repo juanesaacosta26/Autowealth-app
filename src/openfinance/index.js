@@ -12,6 +12,9 @@
 //  5. SINCRONIZACIÓN: se traen cuentas, saldos y movimientos (solo lectura).
 //  6. REVOCACIÓN: el usuario puede cortar el acceso cuando quiera; se avisa
 //     al proveedor y se borran los datos traídos de ese banco.
+//
+//  Esta autorización es de SOLO LECTURA. Mover dinero (pagar una deuda o
+//  invertir) necesita una autorización aparte por cada pago: ver pagos.js.
 // =====================================================================
 const crypto = require('node:crypto');
 const config = require('../config');
@@ -27,7 +30,8 @@ const PROVEEDORES = { simulado: require('./simulado') };
 const proveedor = () => PROVEEDORES[config.openFinance.proveedor];
 
 const RECEPTOR = 'Auto-Wealth';
-const VERSION_TEXTO = 'OF-2026-10-v1';
+// v2 (17 oct 2026): el tipo de acceso aclara que los pagos necesitan una autorización aparte
+const VERSION_TEXTO = 'OF-2026-10-v2';
 const ALCANCE = ['cuentas', 'saldos', 'movimientos'];
 const FINALIDAD = 'Mostrarte un resumen de tus finanzas personales (ingresos, gastos, ahorro, suscripciones) ' +
   'y darte recomendaciones dentro de Auto-Wealth. Tus datos no se venden ni se comparten con terceros.';
@@ -47,7 +51,8 @@ function textoConsentimiento() {
     ],
     finalidad: FINALIDAD,
     duracionMeses: config.openFinance.mesesConsentimiento,
-    tipoAcceso: 'Solo lectura. Auto-Wealth no puede mover tu dinero ni hacer pagos.',
+    tipoAcceso: 'Solo lectura. Con esta autorización Auto-Wealth no puede mover tu dinero. '
+      + 'Si algún día quieres abonar a una deuda o invertir desde Auto-Wealth, cada pago necesita una autorización aparte que confirmas tú en tu banco.',
     derechos: 'Puedes revocar esta autorización cuando quieras desde "Privacidad". Al revocarla, borramos los datos traídos de ese banco. ' +
       'También puedes conocer, actualizar, rectificar y suprimir tus datos (Ley 1581 de 2012 y Ley 1266 de 2008).',
   };
@@ -213,4 +218,6 @@ async function manejarRutaProveedor(req, res, ruta, url) {
 module.exports = {
   bancos, crearConsentimiento, retorno, sincronizar, revocar, revocarTodas,
   manejarRutaProveedor, nombreBanco, textoConsentimiento,
+  // Para src/openfinance/pagos.js
+  proveedor, sincronizarConexion, RECEPTOR,
 };

@@ -1,7 +1,7 @@
 // =====================================================================
 //  panel.js — Lógica del panel financiero (/app).
 //  Responsable: David. Llama a la API (/api/finanzas, /api/openfinance, /api/privacidad).
-//  Las funciones están agrupadas por pestaña: Resumen, Movimientos, Cuentas y bancos, Privacidad.
+//  Las funciones están agrupadas por pestaña: Resumen, Movimientos, Deudas y plan, Cuentas y bancos, Privacidad.
 // =====================================================================
 (function () {
   'use strict';
@@ -49,7 +49,7 @@
   const estado = { resumen: null, mes: null, movimientos: [], categorias: null, cuentas: [], conexiones: [], tipos: [], bancos: null, consentimiento: null, filtroCategoria: '' };
 
   // ================= Pestañas =================
-  const PESTANAS = ['resumen', 'movimientos', 'cuentas', 'privacidad'];
+  const PESTANAS = ['resumen', 'movimientos', 'plan', 'cuentas', 'privacidad'];
   function abrirPestana(nombre, { foco = false } = {}) {
     if (!PESTANAS.includes(nombre)) nombre = 'resumen';
     for (const p of PESTANAS) {
@@ -66,14 +66,16 @@
     b.addEventListener('click', () => abrirPestana(b.dataset.tab));
     b.addEventListener('keydown', (e) => {
       const i = PESTANAS.indexOf(b.dataset.tab);
-      if (e.key === 'ArrowRight') abrirPestana(PESTANAS[(i + 1) % 4], { foco: true });
-      if (e.key === 'ArrowLeft') abrirPestana(PESTANAS[(i + 3) % 4], { foco: true });
+      const n = PESTANAS.length;
+      if (e.key === 'ArrowRight') abrirPestana(PESTANAS[(i + 1) % n], { foco: true });
+      if (e.key === 'ArrowLeft') abrirPestana(PESTANAS[(i + n - 1) % n], { foco: true });
     });
   });
   function cargarPestana(nombre) {
     const fallo = (e) => aviso('bad', esc(e.message));
     if (nombre === 'resumen') cargarResumen().catch(fallo);
     if (nombre === 'movimientos') cargarMovimientos().catch(fallo);
+    if (nombre === 'plan') cargarPlan().catch(fallo);
     if (nombre === 'cuentas') cargarCuentas().catch(fallo);
     if (nombre === 'privacidad') cargarPrivacidad().catch(fallo);
   }
@@ -310,6 +312,172 @@
     else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');
     return Number(s);
   }
+
+  // ================= Deudas y plan =================
+  // El plan lo calcula el servidor (GET /api/finanzas/plan). Aquí solo se muestra y se piden los pagos.
+  // Todo pago se confirma en el banco: esta página nunca mueve dinero por sí sola.
+  async function cargarPlan() {
+    const [p, d, h] = await Promise.all([api('/api/finanzas/plan'), api('/api/finanzas/deudas'), api('/api/finanzas/redirecciones')]);
+    estado.plan = p; estado.deudas = d.deudas; estado.tiposDeuda = d.tipos;
+    const pl = p.plan;
+
+    $('#planDeclaracion').innerHTML = pl.dineroOcioso > 0
+      ? `Tienes <span class="cifra num">${pesos(pl.dineroOcioso)}</span> que podrías poner a trabajar.`
+      : 'Hoy no tienes dinero ocioso.';
+    $('#planRemate').textContent = pl.dineroOcioso > 0
+      ? `Es lo que te queda después de guardar un colchón de emergencia de ${pl.mesesReserva} meses de gastos. Ese colchón no se toca.`
+      : pl.gastoPromedio > 0
+        ? `Lo que tienes disponible cubre tu colchón de emergencia de ${pl.mesesReserva} meses de gastos. Cuando ahorres más, aparecerá aquí.`
+        : 'Conecta un banco o registra tus gastos para calcular tu colchón de emergencia.';
+
+    // "Ecuación" con barra: colchón (reservado) y ocioso, con etiquetas (el color no es la única señal)
+    if (pl.disponible > 0 && pl.gastoPromedio > 0) {
+      const colchon = Math.min(pl.reserva, pl.disponible);
+      const pctColchon = Math.max(2, Math.round(colchon / pl.disponible * 100));
+      $('#planEcuacion').innerHTML = `
+        <div class="ecuacion">
+          <div><span>Disponible en tus cuentas</span><b class="num">${pesos(pl.disponible)}</b></div>
+          <div class="signo" aria-hidden="true">−</div>
+          <div><span>Colchón: ${pl.mesesReserva} meses × ${pesos(pl.gastoPromedio)}</span><b class="num">${pesos(pl.reserva)}</b></div>
+          <div class="signo" aria-hidden="true">=</div>
+          <div><span>Dinero ocioso</span><b class="num acento">${pesos(pl.dineroOcioso)}</b></div>
+        </div>
+        <div class="barra-ocioso" role="img" aria-label="Del dinero disponible, ${pesos(colchon)} es colchón y ${pesos(pl.dineroOcioso)} es ocioso">
+          <span class="colchon" style="width:${pctColchon}%"><i>Colchón</i></span>
+          ${pl.dineroOcioso > 0 ? '<span class="libre"><i>Ocioso</i></span>' : ''}
+        </div>`;
+    } else $('#planEcuacion').innerHTML = '';
+    $('#planNotas').innerHTML = pl.notas.map((n) => `<li><i class="fas fa-circle-info" aria-hidden="true"></i><span>${esc(n)}</span></li>`).join('');
+
+    pintarPasos();
+    pintarDeudas(d);
+    pintarRedirecciones(h);
+  }
+
+  function pintarPasos() {
+    const { plan: pl, cuentasOrigen, aviso } = estado.plan;
+    const puedePagar = cuentasOrigen.length > 0;
+    const lista = $('#planPasos');
+    if (!pl.pasos.length) {
+      lista.innerHTML = `<li class="vacio-paso">${pl.dineroOcioso > 0 ? '' : 'Cuando tengas dinero ocioso, aquí verás qué hacer con él.'}${!estado.deudas.length ? ' Registra tus deudas para que el plan las tenga en cuenta.' : ''}</li>`;
+    } else {
+      lista.innerHTML = pl.pasos.map((paso, i) => {
+        const boton = `<button class="btn chico ${i === 0 ? 'primario' : ''}" data-paso="${i}" ${puedePagar ? '' : 'disabled'}>${paso.tipo === 'pago_deuda' ? '<i class="fas fa-hand-holding-dollar"></i> Hacer este pago' : '<i class="fas fa-seedling"></i> Invertir'}</button>`;
+        if (paso.tipo === 'pago_deuda') {
+          return `<li><div class="texto"><b>Abona <span class="num">${pesos(paso.monto)}</span> a ${esc(paso.nombre)}</b> <span class="chip warn">${String(paso.tasaEA).replace('.', ',')} % EA</span>${paso.liquida ? ' <span class="chip ok">La pagas completa</span>' : ''}
+            <span class="detalle">${i === 0 ? 'Es tu deuda más cara.' : 'Es la siguiente más cara.'} Abonarle te ahorra cerca de <b class="num">${pesos(paso.interesesEvitadosAnio)}</b> en intereses en un año (aproximado).</span></div>${boton}</li>`;
+        }
+        return `<li><div class="texto"><b>Pon <span class="num">${pesos(paso.monto)}</span> en renta fija</b>
+          <span class="detalle">${pl.pasos.length > 1 ? 'Ya no quedan deudas por pagar con el dinero ocioso. ' : ''}Puedes elegir un CDT o un fondo de inversión colectiva de renta fija.</span></div>${boton}</li>`;
+      }).join('');
+    }
+    $('#planAviso').innerHTML = `<i class="fas fa-scale-balanced" aria-hidden="true"></i> ${esc(aviso)}${puedePagar ? '' : ' <b>Para hacer pagos desde aquí, conecta un banco.</b>'}`;
+  }
+
+  function pintarDeudas(d) {
+    $('#listaDeudas').innerHTML = d.deudas.length ? d.deudas.map((x) => `
+      <div class="deuda-fila">
+        <span class="ico"><i class="fas ${x.tipo === 'tarjeta_credito' ? 'fa-credit-card' : x.tipo === 'hipotecario' ? 'fa-house' : x.tipo === 'vehiculo' ? 'fa-car' : x.tipo === 'educativo' ? 'fa-graduation-cap' : 'fa-file-invoice-dollar'}"></i></span>
+        <span><b>${esc(x.nombre)}</b> <span class="chip ${x.tasaEA >= 20 ? 'warn' : ''}">${String(x.tasaEA).replace('.', ',')} % EA</span><br>
+          <span class="detalle">${esc(x.tipoNombre)}${x.cuotaMinima ? `, cuota mínima ${pesos(x.cuotaMinima)}` : ''}${x.diaPago ? `, paga el día ${x.diaPago}` : ''}</span></span>
+        <b class="num" style="text-align:right">${x.saldo > 0 ? pesos(x.saldo) : '<span class="chip ok">Pagada</span>'}</b>
+        <span class="acciones-fila">
+          <button class="borrar" data-editar-deuda="${x.id}" aria-label="Editar la deuda ${esc(x.nombre)}"><i class="fas fa-pen"></i></button>
+          <button class="borrar" data-borrar-deuda="${x.id}" data-nombre="${esc(x.nombre)}" aria-label="Borrar la deuda ${esc(x.nombre)}"><i class="fas fa-trash-can"></i></button>
+        </span>
+      </div>`).join('') + `<p class="total-deudas">Debes en total <b class="num">${pesos(d.total)}</b></p>`
+      : '<p class="vacio" style="text-align:left;padding:12px 0">No has registrado deudas. Si tienes alguna, regístrala: pagar primero las más caras suele ser lo que más rinde.</p>';
+  }
+
+  function pintarRedirecciones(h) {
+    const ESTADOS = { ejecutada: ['Hecho', 'ok'], pendiente: ['Sin confirmar', 'warn'], rechazada: ['Rechazado', ''], fallida: ['No se hizo', 'bad'] };
+    $('#totalesRedir').innerHTML = `<div><span>Abonado a deudas</span><b class="num">${pesos(h.totales.abonadoDeudas)}</b></div><div><span>Invertido en renta fija</span><b class="num">${pesos(h.totales.invertido)}</b></div>`;
+    $('#historialRedir').innerHTML = h.redirecciones.length ? h.redirecciones.map((r) => {
+      const [txt, cls] = ESTADOS[r.estado] || [r.estado, ''];
+      const deuda = estado.deudas.find((x) => x.id === r.deuda_id);
+      const que = r.tipo === 'pago_deuda' ? `Pago a ${deuda ? esc(deuda.nombre) : 'una deuda'}` : esc(r.destinoNombre || 'Inversión en renta fija');
+      return `<li><span><b>${que}</b> <span class="chip ${cls}">${esc(txt)}</span>${r.simulado ? ' <span class="chip">Simulado</span>' : ''}<br><span class="detalle">Desde ${esc(r.cuenta_nombre)}, ${fechaHora(r.creado_en)}</span></span><b class="num">${pesos(r.monto)}</b></li>`;
+    }).join('') : '<li class="detalle">Todavía no has movido dinero desde Auto-Wealth.</li>';
+  }
+
+  // ----- Registrar / editar una deuda -----
+  function abrirDeuda(deuda) {
+    $('#dTipo').innerHTML = estado.tiposDeuda.map((t) => `<option value="${t.id}">${esc(t.nombre)}</option>`).join('');
+    $('#dlgDeudaTitulo').textContent = deuda ? 'Actualizar deuda' : 'Registrar una deuda';
+    $('#dNombre').value = deuda ? deuda.nombre : '';
+    $('#dTipo').value = deuda ? deuda.tipo : 'tarjeta_credito'; $('#dTipo').disabled = !!deuda;
+    $('#dSaldo').value = deuda ? deuda.saldo : '';
+    $('#dTasa').value = deuda ? String(deuda.tasaEA).replace('.', ',') : '';
+    $('#dCuota').value = deuda && deuda.cuotaMinima ? deuda.cuotaMinima : '';
+    $('#dDia').value = deuda && deuda.diaPago ? deuda.diaPago : '';
+    $('#formDeuda').dataset.id = deuda ? deuda.id : '';
+    $('#dError').hidden = true;
+    $('#dlgDeuda').showModal(); $('#dNombre').focus();
+  }
+  $('#btnNuevaDeuda').addEventListener('click', () => abrirDeuda(null));
+  $('#formDeuda').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = e.target.dataset.id, btn = $('#dGuardar'); btn.disabled = true; $('#dError').hidden = true;
+    const cuerpo = {
+      nombre: $('#dNombre').value, saldo: leerNumero($('#dSaldo').value), tasaEA: Number(String($('#dTasa').value).replace(',', '.')),
+      cuotaMinima: $('#dCuota').value ? leerNumero($('#dCuota').value) : 0, diaPago: $('#dDia').value ? Number($('#dDia').value) : null,
+    };
+    try {
+      if (id) await api('/api/finanzas/deudas/' + id, { method: 'PATCH', body: cuerpo });
+      else await api('/api/finanzas/deudas', { method: 'POST', body: { ...cuerpo, tipo: $('#dTipo').value } });
+      $('#dlgDeuda').close(); toast(id ? 'Deuda actualizada' : 'Deuda registrada'); await cargarPlan();
+    } catch (err) { $('#dError').textContent = err.message; $('#dError').hidden = false; } finally { btn.disabled = false; }
+  });
+  $('#listaDeudas').addEventListener('click', (e) => {
+    const ed = e.target.closest('[data-editar-deuda]'), bo = e.target.closest('[data-borrar-deuda]');
+    if (ed) abrirDeuda(estado.deudas.find((x) => String(x.id) === ed.dataset.editarDeuda));
+    if (bo) {
+      confirmar({ titulo: `Borrar "${bo.dataset.nombre}"`, texto: 'La deuda saldrá de tus registros y del plan. Los pagos que ya hiciste quedan en el historial.', boton: 'Borrar deuda' }, async () => {
+        await api('/api/finanzas/deudas/' + bo.dataset.borrarDeuda, { method: 'DELETE' }); toast('Deuda borrada'); await cargarPlan();
+      });
+    }
+  });
+
+  // ----- Pedir un pago o una inversión (se confirma en el banco) -----
+  let pasoActual = null;
+  $('#planPasos').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-paso]'); if (!b) return;
+    pasoActual = estado.plan.plan.pasos[Number(b.dataset.paso)];
+    const { cuentasOrigen, destinos } = estado.plan;
+    const deuda = pasoActual.tipo === 'pago_deuda';
+    $('#dlgPagoTitulo').textContent = deuda ? `Abonar a ${pasoActual.nombre}` : 'Invertir en renta fija';
+    $('#pagoSub').textContent = deuda ? `Deuda al ${String(pasoActual.tasaEA).replace('.', ',')} % EA.` : 'Elige el tipo de inversión. Auto-Wealth no recomienda una entidad ni un producto específico.';
+    $('#pCuenta').innerHTML = cuentasOrigen.map((c) => `<option value="${c.id}">${esc(c.nombre)}${c.ultimos4 ? ' ···' + esc(c.ultimos4) : ''} (${pesos(c.saldo)})</option>`).join('');
+    $('#pMonto').value = Math.round(pasoActual.monto).toLocaleString('es-CO');
+    $('#pDestinos').hidden = deuda;
+    $('#pDestinosLista').innerHTML = deuda ? '' : destinos.map((d, i) => `<label class="opcion-destino"><input type="radio" name="destino" value="${d.id}" ${i === 0 ? 'checked' : ''}><span><b>${esc(d.nombre)}</b><br><span class="detalle">${esc(d.explicacion)}</span></span></label>`).join('');
+    $('#pAcepto').checked = false; $('#pIr').disabled = true; $('#pError').hidden = true;
+    actualizarAutorizacion();
+    $('#dlgPago').showModal(); $('#pMonto').focus();
+  });
+  // El texto de la autorización viene del servidor (con su versión); aquí solo se completa con los datos del pago
+  function actualizarAutorizacion() {
+    if (!pasoActual) return;
+    const t = estado.plan.autorizacionPago, cuenta = $('#pCuenta').selectedOptions[0];
+    const monto = leerNumero($('#pMonto').value);
+    const destino = pasoActual.tipo === 'pago_deuda' ? `tu deuda "${pasoActual.nombre}"` : ($('input[name=destino]:checked')?.closest('label').querySelector('b').textContent || 'renta fija');
+    $('#pAutorizacion').innerHTML = `<p style="margin:0 0 8px;color:var(--text)"><b>Vas a pedir a tu banco un pago de <span class="num">${Number.isFinite(monto) ? pesos(monto) : '—'}</span> desde ${esc(cuenta ? cuenta.textContent : '')} hacia ${esc(destino)}.</b></p>
+      <ul>${t.condiciones.map((c) => `<li>${esc(c)}</li>`).join('')}</ul><p class="detalle" style="margin:8px 0 0">Versión del texto: ${esc(t.version)}</p>`;
+  }
+  ['#pCuenta', '#pMonto'].forEach((s) => $(s).addEventListener('input', actualizarAutorizacion));
+  $('#pDestinosLista').addEventListener('change', actualizarAutorizacion);
+  $('#pAcepto').addEventListener('change', (e) => { $('#pIr').disabled = !e.target.checked; });
+  $('#formPago').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const b = $('#pIr'); b.disabled = true; $('#pError').hidden = true;
+    const cuerpo = { tipo: pasoActual.tipo, cuentaId: Number($('#pCuenta').value), monto: leerNumero($('#pMonto').value), acepta: true };
+    if (pasoActual.tipo === 'pago_deuda') cuerpo.deudaId = pasoActual.deudaId;
+    else cuerpo.destino = $('input[name=destino]:checked').value;
+    try {
+      const r = await api('/api/finanzas/redirecciones', { method: 'POST', body: cuerpo });
+      location.href = r.url; // a la pantalla del banco, donde la persona confirma o rechaza
+    } catch (err) { $('#pError').textContent = err.message; $('#pError').hidden = false; b.disabled = false; }
+  });
 
   // ================= Cuentas y bancos =================
   async function cargarCuentas() {
@@ -584,6 +752,17 @@
     invalido: ['bad', 'La solicitud de conexión venció o no es válida. Vuelve a empezar desde "Conectar un banco".'],
   };
   if (MENSAJES_OF[of]) { aviso(...MENSAJES_OF[of]); history.replaceState(null, '', location.pathname + location.hash); }
+
+  // Mensajes al volver del banco después de un pago (?pago=...)
+  const pago = new URLSearchParams(location.search).get('pago');
+  const MENSAJES_PAGO = {
+    ejecutado: ['ok', 'Listo: tu banco confirmó el pago y ya actualizamos tus saldos. <b>Recuerda: en este prototipo el pago es simulado.</b>'],
+    rechazado: ['info', 'No se hizo el pago porque lo rechazaste en tu banco. No se movió nada.'],
+    'sin-fondos': ['bad', 'Tu banco no tenía saldo suficiente en esa cuenta. No se movió nada.'],
+    invalido: ['bad', 'La solicitud de pago venció o ya se usó. Vuelve a empezar desde el plan.'],
+    error: ['bad', 'No pudimos confirmar el pago con tu banco. Revisa el historial antes de intentarlo de nuevo.'],
+  };
+  if (MENSAJES_PAGO[pago]) { aviso(...MENSAJES_PAGO[pago]); history.replaceState(null, '', location.pathname + location.hash); }
 
   abrirPestana((location.hash || '#resumen').slice(1));
 })();
