@@ -16,7 +16,8 @@ const TODAS = [...INGRESOS, ...GASTOS, NEUTRA];
 
 // Reglas en orden: la primera que coincide gana
 const REGLAS = [
-  [NEUTRA, /pago (de )?tarjeta|pago tc|abono (a )?tarjeta|pago recibido|traslado entre cuentas|transferencia (entre cuentas )?propia/],
+  // "inversion renta fija": dinero que pasa a una inversión propia (CDT o fondo). Sigue siendo tuyo: no es gasto
+  [NEUTRA, /pago (de )?tarjeta|pago tc|abono (a )?tarjeta|pago recibido|traslado entre cuentas|transferencia (entre cuentas )?propia|inversion renta fija/],
   ['Salario', /nomina|salario|sueldo|pago de nomina/],
   ['Impuestos y comisiones', /4x1000|gmf|cuota de manejo|comision|impuesto|\bdian\b|predial|iva /],
   ['Suscripciones', /netflix|spotify|disney|hbo|\bmax\b|prime video|amazon prime|youtube premium|apple\.com|icloud|google one|deezer|crunchyroll|paramount|smart ?fit|bodytech|gimnasio|chatgpt|openai|canva|microsoft 365/],
@@ -30,7 +31,7 @@ const REGLAS = [
   ['Educación', /universidad|colegio|matricula|platzi|coursera|udemy|libreria|panamericana/],
   ['Entretenimiento', /cine|cinemark|procinal|tuboleta|eticket|steam|playstation|xbox|concierto/],
   ['Compras', /falabella|\bzara\b|h&m|mercado ?libre|amazon|temu|shein|arturo calle|adidas|nike|homecenter|ktronix/],
-  ['Deudas y créditos', /credito|prestamo|cuota |leasing|icetex|libranza/],
+  ['Deudas y créditos', /credito|prestamo|cuota |leasing|icetex|libranza|pago deuda/],
 ];
 
 // Quita tildes y pasa a minúsculas para comparar sin errores

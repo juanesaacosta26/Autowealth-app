@@ -174,8 +174,139 @@ async function mesesConDatos(usuarioId) {
   return rows.map((r) => r.mes);
 }
 
-// Borra cuentas, movimientos y conexiones (los consentimientos quedan como historial, revocados)
+// ---------------------------------- DEUDAS -----------------------------------
+
+const COLUMNAS_DEUDA = `id, nombre_cifrado, tipo, saldo::float8 AS saldo, tasa_ea::float8 AS tasa_ea,
+  cuota_minima::float8 AS cuota_minima, dia_pago, creado_en, actualizado_en`;
+
+async function listarDeudas(usuarioId) {
+  const { rows } = await pool.query(
+    `SELECT ${COLUMNAS_DEUDA} FROM deudas WHERE usuario_id = $1 ORDER BY tasa_ea DESC, id`, [usuarioId]);
+  return rows;
+}
+
+async function obtenerDeuda(usuarioId, id) {
+  const { rows } = await pool.query(`SELECT ${COLUMNAS_DEUDA} FROM deudas WHERE usuario_id = $1 AND id = $2`, [usuarioId, id]);
+  return rows[0] || null;
+}
+
+async function contarDeudas(usuarioId) {
+  const { rows } = await pool.query('SELECT COUNT(*)::int AS n FROM deudas WHERE usuario_id = $1', [usuarioId]);
+  return rows[0].n;
+}
+
+async function crearDeuda(d) {
+  const { rows } = await pool.query(
+    `INSERT INTO deudas (usuario_id, nombre_cifrado, tipo, saldo, tasa_ea, cuota_minima, dia_pago)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+    [d.usuarioId, d.nombreCifrado, d.tipo, d.saldo, d.tasaEA, d.cuotaMinima, d.diaPago]);
+  return rows[0].id;
+}
+
+// Solo cambia los campos que llegan (los demás quedan igual gracias a COALESCE)
+async function actualizarDeuda(usuarioId, id, c) {
+  const { rows } = await pool.query(
+    `UPDATE deudas SET
+        nombre_cifrado = COALESCE($3, nombre_cifrado),
+        saldo          = COALESCE($4, saldo),
+        tasa_ea        = COALESCE($5, tasa_ea),
+        cuota_minima   = COALESCE($6, cuota_minima),
+        dia_pago       = CASE WHEN $7::boolean THEN $8::smallint ELSE dia_pago END,
+        actualizado_en = now()
+      WHERE usuario_id = $1 AND id = $2 RETURNING id`,
+    [usuarioId, id, c.nombreCifrado ?? null, c.saldo ?? null, c.tasaEA ?? null, c.cuotaMinima ?? null,
+      c.diaPago !== undefined, c.diaPago ?? null]);
+  return rows.length > 0;
+}
+
+async function eliminarDeuda(usuarioId, id) {
+  const { rows } = await pool.query('DELETE FROM deudas WHERE usuario_id = $1 AND id = $2 RETURNING id', [usuarioId, id]);
+  return rows.length > 0;
+}
+
+// Resta un pago del saldo de la deuda (nunca queda por debajo de 0)
+async function abonarDeuda(usuarioId, id, monto) {
+  await pool.query(
+    `UPDATE deudas SET saldo = GREATEST(saldo - $3, 0), actualizado_en = now() WHERE usuario_id = $1 AND id = $2`,
+    [usuarioId, id, monto]);
+}
+
+// ------------------------- REDIRECCIONES (pagos e inversiones) -------------------------
+
+// Cuenta de un banco conectado, con lo necesario para iniciar un pago desde ella
+async function obtenerCuentaParaPago(usuarioId, id) {
+  const { rows } = await pool.query(
+    `SELECT k.id, k.origen, k.nombre, k.tipo, k.id_externo, k.conexion_id, k.saldo::float8 AS saldo,
+            x.institucion, (c.expira_en < now()) AS vencida
+       FROM cuentas k
+       LEFT JOIN conexiones x ON x.id = k.conexion_id
+       LEFT JOIN consentimientos c ON c.id = x.consentimiento_id
+      WHERE k.usuario_id = $1 AND k.id = $2`, [usuarioId, id]);
+  return rows[0] || null;
+}
+
+async function crearRedireccion(r) {
+  const { rows } = await pool.query(
+    `INSERT INTO redirecciones (usuario_id, tipo, deuda_id, destino, conexion_id, cuenta_id_externo, cuenta_nombre,
+                                monto, estado, version_texto, state_hash)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pendiente', $9, $10) RETURNING id`,
+    [r.usuarioId, r.tipo, r.deudaId, r.destino, r.conexionId, r.cuentaIdExterno, r.cuentaNombre, r.monto, r.version, r.stateHash]);
+  return rows[0].id;
+}
+
+async function buscarRedireccionPorState(stateHash) {
+  const { rows } = await pool.query(
+    `SELECT id, usuario_id, tipo, deuda_id, destino, conexion_id, monto::float8 AS monto, estado,
+            (creado_en > now() - interval '15 minutes') AS reciente
+       FROM redirecciones WHERE state_hash = $1`, [stateHash]);
+  return rows[0] || null;
+}
+
+// Cambia el estado y borra la huella del state: el enlace de regreso ya no sirve otra vez
+async function cerrarRedireccion(id, estado, idPagoExterno = null) {
+  await pool.query(
+    `UPDATE redirecciones SET estado = $2, state_hash = NULL, id_pago_externo = $3,
+            ejecutado_en = CASE WHEN $2 = 'ejecutada' THEN now() ELSE NULL END
+      WHERE id = $1`, [id, estado, idPagoExterno]);
+}
+
+// Dinero ya comprometido en solicitudes que el usuario todavía puede autorizar en el banco
+async function montoPendiente(usuarioId) {
+  const { rows } = await pool.query(
+    `SELECT COALESCE(SUM(monto), 0)::float8 AS total FROM redirecciones
+      WHERE usuario_id = $1 AND estado = 'pendiente' AND creado_en > now() - interval '15 minutes'`, [usuarioId]);
+  return rows[0].total;
+}
+
+async function listarRedirecciones(usuarioId) {
+  const { rows } = await pool.query(
+    `SELECT id, tipo, deuda_id, destino, cuenta_nombre, monto::float8 AS monto, estado, simulado, creado_en, ejecutado_en
+       FROM redirecciones WHERE usuario_id = $1 ORDER BY creado_en DESC, id DESC LIMIT 200`, [usuarioId]);
+  return rows;
+}
+
+// ------------------- BANCO DE PRUEBA (lo usa solo src/openfinance/simulado.js) -------------------
+
+async function registrarPagoBancoDemo(p) {
+  const { rows } = await pool.query(
+    `INSERT INTO banco_demo_pagos (usuario_id, institucion, cuenta_id_externo, monto, concepto)
+     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+    [p.usuarioId, p.institucion, p.cuentaIdExterno, p.monto, p.concepto]);
+  return rows[0].id;
+}
+
+async function listarPagosBancoDemo(usuarioId, institucion) {
+  const { rows } = await pool.query(
+    `SELECT id, cuenta_id_externo, to_char(fecha, 'YYYY-MM-DD') AS fecha, monto::float8 AS monto, concepto
+       FROM banco_demo_pagos WHERE usuario_id = $1 AND institucion = $2 ORDER BY id`, [usuarioId, institucion]);
+  return rows;
+}
+
+// Borra cuentas, movimientos, conexiones, deudas y solicitudes de pago
+// (los consentimientos quedan como historial, revocados)
 async function borrarFinanzas(usuarioId) {
+  await pool.query('DELETE FROM redirecciones WHERE usuario_id = $1', [usuarioId]);
+  await pool.query('DELETE FROM deudas WHERE usuario_id = $1', [usuarioId]);
   await pool.query('DELETE FROM cuentas WHERE usuario_id = $1', [usuarioId]);
   await pool.query('DELETE FROM conexiones WHERE usuario_id = $1', [usuarioId]);
   await pool.query(
@@ -188,4 +319,7 @@ module.exports = {
   crearConexion, obtenerConexion, listarConexiones, marcarSincronizada, eliminarConexion,
   guardarCuentaExterna, crearCuentaManual, listarCuentas, obtenerCuenta, eliminarCuentaManual,
   insertarMovimientos, listarMovimientos, cambiarCategoria, eliminarMovimiento, mesesConDatos, borrarFinanzas,
+  listarDeudas, obtenerDeuda, contarDeudas, crearDeuda, actualizarDeuda, eliminarDeuda, abonarDeuda,
+  obtenerCuentaParaPago, crearRedireccion, buscarRedireccionPorState, cerrarRedireccion, montoPendiente, listarRedirecciones,
+  registrarPagoBancoDemo, listarPagosBancoDemo,
 };

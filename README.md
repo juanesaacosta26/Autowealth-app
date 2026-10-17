@@ -18,6 +18,7 @@
 | **Open Finance** con banco de prueba: consentimiento → autorización en el banco → cuentas y movimientos | ✅ (bancos ficticios) |
 | Importar extractos CSV y registrar movimientos a mano | ✅ |
 | Centro de privacidad: autorizaciones, historial, descargar, borrar y eliminar cuenta | ✅ |
+| **Deudas y dinero ocioso:** registro de deudas, plan (deudas más caras primero y luego renta fija) y pagos autorizados en el banco | ✅ (pagos **simulados** con el banco de prueba) |
 | Presupuestos por categoría | 🛠️ Semanas 2–3 |
 | Metas de ahorro | 🛠️ Semanas 2–3 |
 | Recuperar contraseña por correo | 🛠️ Semana 3 |

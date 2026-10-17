@@ -15,6 +15,7 @@
 //   GET    /api/privacidad/exportar              → descargar todos mis datos (JSON)
 //   POST   /api/privacidad/borrar-finanzas       → borrar toda mi información financiera
 //   POST   /api/privacidad/eliminar-cuenta       → eliminar mi cuenta por completo
+//  Las deudas y el plan para el dinero ocioso están en finanzas/deudas.js.
 // =====================================================================
 const crypto = require('node:crypto');
 const db = require('../db');
@@ -24,6 +25,7 @@ const openfinance = require('../openfinance');
 const { cifrar, descifrar } = require('../cifrado');
 const { TODAS, INGRESOS, GASTOS, NEUTRA, categorizar } = require('./categorias');
 const { resumen: calcularResumen, mesesAtras } = require('./analisis');
+const { deudaParaRespuesta } = require('./deudas');
 const { enviarJson, leerJson } = require('../http');
 const { exigirUsuario } = require('../sesion');
 const { verificarContrasena, crearLimitador, cookieCerrarSesion } = require('../seguridad');
@@ -260,6 +262,8 @@ async function exportar(req, res) {
     autorizaciones: await fdb.listarConsentimientos(usuario.id),
     cuentas: await fdb.listarCuentas(usuario.id),
     movimientos: descifrarMovimientos(await fdb.listarMovimientos(usuario.id)),
+    deudas: (await fdb.listarDeudas(usuario.id)).map(deudaParaRespuesta),
+    pagos_e_inversiones: await fdb.listarRedirecciones(usuario.id),
     historial: await auditoria.listar(usuario.id, 1000),
   };
   await auditoria.registrar(usuario.id, 'datos_exportados', '');

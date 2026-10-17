@@ -16,8 +16,13 @@ erDiagram
     usuarios ||--o{ cuentas : tiene
     usuarios ||--o{ movimientos : tiene
     usuarios ||--o{ auditoria : genera
+    usuarios ||--o{ deudas : registra
+    usuarios ||--o{ redirecciones : pide
+    usuarios ||--o{ banco_demo_pagos : "(banco de prueba)"
     consentimientos ||--o| conexiones : "da origen a"
     conexiones ||--o{ cuentas : "trae"
+    conexiones ||--o{ redirecciones : "paga desde"
+    deudas ||--o{ redirecciones : "recibe abonos"
     cuentas ||--o{ movimientos : contiene
 
     usuarios {
@@ -99,6 +104,46 @@ erDiagram
         text detalle
         timestamptz creado_en
     }
+    deudas {
+        serial id PK
+        int usuario_id FK
+        text nombre_cifrado "AES-256-GCM"
+        varchar tipo
+        numeric saldo "lo que falta por pagar"
+        numeric tasa_ea "% efectivo anual"
+        numeric cuota_minima
+        smallint dia_pago
+        timestamptz creado_en
+        timestamptz actualizado_en
+    }
+    redirecciones {
+        serial id PK
+        int usuario_id FK
+        varchar tipo "pago_deuda|inversion"
+        int deuda_id FK "NULL si es inversión"
+        varchar destino "cdt|fondo_renta_fija"
+        int conexion_id FK
+        varchar cuenta_id_externo
+        varchar cuenta_nombre
+        numeric monto
+        varchar estado "pendiente|ejecutada|rechazada|fallida"
+        varchar version_texto
+        boolean simulado
+        varchar state_hash "huella del state, se borra al usarse"
+        varchar id_pago_externo
+        timestamptz creado_en
+        timestamptz ejecutado_en
+    }
+    banco_demo_pagos {
+        serial id PK
+        int usuario_id FK
+        varchar institucion
+        varchar cuenta_id_externo
+        date fecha
+        numeric monto
+        varchar concepto
+        timestamptz creado_en
+    }
 ```
 
 ## Tablas
@@ -112,14 +157,20 @@ erDiagram
 | `cuentas` | Cuentas del banco o manuales | Solo `numero_ultimos4`, **nunca** el número completo. Única por `(conexion_id, id_externo)` |
 | `movimientos` | Ingresos y gastos | `descripcion_cifrada` va **cifrada**. Única por `(cuenta_id, id_externo)`: así sincronizar o importar dos veces no duplica |
 | `auditoria` | Historial de acciones sobre datos financieros | El usuario ve el suyo en "Privacidad". Las acciones válidas están en `src/auditoria.js` |
+| `deudas` | Deudas que el usuario registra a mano | `nombre_cifrado` va **cifrado**. `saldo >= 0` (0 = pagada). Máximo 30 por usuario (lo controla la API) |
+| `redirecciones` | Cada pago o inversión que el usuario pide desde el plan | Es la **prueba de la autorización de cada pago**: guarda la versión del texto aceptado. Se guarda `cuenta_id_externo` y `cuenta_nombre` para que el historial siga legible aunque se revoque el banco. `simulado = true` en todo el prototipo |
+| `banco_demo_pagos` | **Solo para el banco de prueba**: su "libro" de pagos | La usa `src/openfinance/simulado.js`. Con un banco real no existe: el banco lleva su propio registro |
 
 ### Qué pasa al borrar
 - **Eliminar un usuario** borra en cascada todo lo suyo (`ON DELETE CASCADE`).
 - **Eliminar una conexión** (revocar banco) borra sus cuentas y, en cascada, sus movimientos.
 - **Eliminar una cuenta** borra sus movimientos.
+- **Eliminar una deuda** deja sus pagos en `redirecciones` (con `deuda_id` en NULL).
+- **Revocar un banco** deja las solicitudes de pago en el historial (con `conexion_id` en NULL).
+- **"Borrar mi información financiera"** borra también `deudas` y `redirecciones`.
 
 ### Índices
-`ingresos(usuario_id)`, `ingresos(creado_en)`, `consentimientos(usuario_id)`, `conexiones(usuario_id)`, `cuentas(usuario_id)`, `movimientos(usuario_id, fecha DESC)` y `auditoria(usuario_id, creado_en DESC)`. Las consultas del panel siempre filtran por `usuario_id` y fecha.
+`ingresos(usuario_id)`, `ingresos(creado_en)`, `consentimientos(usuario_id)`, `conexiones(usuario_id)`, `cuentas(usuario_id)`, `movimientos(usuario_id, fecha DESC)`, `auditoria(usuario_id, creado_en DESC)`, `deudas(usuario_id)`, `redirecciones(usuario_id, creado_en DESC)` y `banco_demo_pagos(usuario_id, institucion)`. Las consultas del panel siempre filtran por `usuario_id` y fecha.
 
 ## Reglas para escribir consultas
 

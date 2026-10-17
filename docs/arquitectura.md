@@ -28,6 +28,7 @@ flowchart LR
     A -- correo de bienvenida --> G
     G -. enlace .-> FORM
     O -- "autorización y datos (solo lectura)" --> B
+    O -. "pago único autorizado en el banco (simulado)" .-> B
 ```
 
 ## Principios del diseño
@@ -61,7 +62,8 @@ Ejemplo: el usuario cambia la categoría de un movimiento.
 | `server.js` | Arranque, tabla de rutas, archivos estáticos | Juanes (rutas) · Samu (arranque) |
 | `src/rutas.js`, `src/finanzas/rutas.js`, `src/openfinance/index.js` | Lógica de la API | **Juanes** |
 | `src/validacion.js` | Validación de datos de entrada | Juanes |
-| `src/finanzas/analisis.js`, `src/finanzas/categorias.js` | Cálculos del resumen y clasificación | Juanes (con David para lo que se muestra) |
+| `src/finanzas/analisis.js`, `src/finanzas/categorias.js` | Cálculos del resumen, del plan para el dinero ocioso y clasificación | Juanes (con David para lo que se muestra) |
+| `src/finanzas/deudas.js`, `src/openfinance/pagos.js` | Deudas, plan y pagos simulados | Juanes |
 | `src/schema.sql`, `src/db.js`, `src/finanzas/db.js` | Estructura y consultas de la base de datos | **Garavito** |
 | `src/auditoria.js` | Registro de actividad | Garavito |
 | `src/openfinance/simulado.js` | Banco de prueba | Juanes |
